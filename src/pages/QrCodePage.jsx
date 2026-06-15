@@ -2,15 +2,175 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { generateQrCode, getMyQrCodes } from '../api/client'
 import { useQuery } from '@tanstack/react-query'
+import { useAuth } from '../context/AuthContext'
 
 const QrCodePage = () => {
   const navigate = useNavigate()
+  const { restaurant } = useAuth() // 🔑 Récupération du restaurant depuis le contexte Auth
   const [generating, setGenerating] = useState(false)
 
   const { data, refetch } = useQuery({
     queryKey: ['qrcodes'],
     queryFn: getMyQrCodes
   })
+
+  // 🖨️ Fonction handlePrint utilisant le contexte du restaurant
+  const handlePrint = (qr) => {
+    const win = window.open('', '_blank')
+    win.document.write(`
+      <html>
+        <head>
+          <title>QR Code - FidApp</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+               font-family: 'Helvetica Neue', sans-serif; 
+               display: flex; 
+               align-items: center; 
+               justify-content: center; 
+               min-height: 100vh; 
+               background: #fff;
+            }
+            .card { 
+               width: 380px;
+               border-radius: 24px; 
+               padding: 40px 32px; 
+               text-align: center;
+               border: 2px solid #f97316;
+               position: relative;
+               overflow: hidden;
+            }
+            .top-bar {
+              background: #f97316;
+              position: absolute;
+              top: 0; left: 0; right: 0;
+              height: 8px;
+            }
+            .logo-wrap {
+              width: 64px;
+              height: 64px;
+              background: #f97316;
+              border-radius: 16px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin: 0 auto 16px;
+              font-size: 32px;
+            }
+            h1 { 
+               color: #1a1a1a; 
+               font-size: 28px; 
+               font-weight: 800;
+               letter-spacing: -0.5px;
+               margin-bottom: 4px;
+            }
+            .tagline {
+              color: #f97316;
+              font-size: 13px;
+              font-weight: 600;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              margin-bottom: 24px;
+            }
+            .qr-wrap {
+              background: #fff;
+              border: 2px solid #f1f1f1;
+              border-radius: 16px;
+              padding: 16px;
+              display: inline-block;
+              margin-bottom: 24px;
+            }
+            img { 
+               width: 240px; 
+               height: 240px; 
+               display: block;
+            }
+            .steps {
+              background: #fff7ed;
+              border-radius: 12px;
+              padding: 16px;
+              margin-bottom: 20px;
+              text-align: left;
+            }
+            .step {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              margin-bottom: 8px;
+              font-size: 13px;
+              color: #374151;
+            }
+            .step:last-child { margin-bottom: 0; }
+            .step-num {
+              width: 22px;
+              height: 22px;
+              background: #f97316;
+              color: white;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 11px;
+              font-weight: 700;
+              flex-shrink: 0;
+            }
+            .reward-badge {
+              background: #f97316;
+              color: white;
+              border-radius: 99px;
+              padding: 8px 20px;
+              font-size: 13px;
+              font-weight: 700;
+              display: inline-block;
+              margin-bottom: 16px;
+            }
+            .footer { 
+               font-size: 11px; 
+               color: #9ca3af;
+            }
+            .footer strong { color: #f97316; }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="top-bar"></div>
+            <div class="logo-wrap">🃏</div>
+            <h1>FidApp</h1>
+            <p class="tagline">Carte de fidélité digitale</p>
+            
+            <div class="qr-wrap">
+              <img src="${qr.qrImage}" />
+            </div>
+            <div class="reward-badge">
+              🎁 ${restaurant?.checksRequired || 10} visites = 1 repas gratuit
+            </div>
+            <div class="steps">
+              <div class="step">
+                <div class="step-num">1</div>
+                <span>Scannez ce QR code avec votre téléphone</span>
+              </div>
+              <div class="step">
+                <div class="step-num">2</div>
+                <span>Entrez votre numéro de téléphone</span>
+              </div>
+              <div class="step">
+                <div class="step-num">3</div>
+                <span>Accumulez des points à chaque visite</span>
+              </div>
+            </div>
+            <div class="footer">
+              Powered by <strong>FidApp.ma</strong> • Sécurisé & gratuit pour vous
+            </div>
+          </div>
+          <script>window.onload = () => window.print()</script>
+        </body>
+      </html>
+    `)
+    win.document.close()
+  }
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -22,40 +182,6 @@ const QrCodePage = () => {
     } finally {
       setGenerating(false)
     }
-  }
-
-  const handlePrint = (qr) => {
-    const win = window.open('', '_blank')
-    win.document.write(`
-      <html>
-        <head>
-          <title>QR Code - FidApp</title>
-          <style>
-            body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #fff; }
-            .card { border: 2px solid #f97316; border-radius: 24px; padding: 40px; text-align: center; max-width: 400px; }
-            h1 { color: #f97316; font-size: 28px; margin-bottom: 4px; }
-            p { color: #9ca3af; font-size: 14px; margin-bottom: 24px; }
-            img { width: 280px; height: 280px; }
-            .footer { margin-top: 20px; font-size: 12px; color: #d1d5db; }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <h1>🃏 FidApp</h1>
-            <p>Scannez pour gagner des récompenses</p>
-            <img id="qr-img" src="${qr.qrImage}" />
-            <div class="footer">Sécurisé par FidApp • Maroc</div>
-          </div>
-          <script>
-            // Attend que l'image soit bien chargée avant de lancer l'impression
-            document.getElementById('qr-img').onload = function() {
-              window.print();
-            };
-          </script>
-        </body>
-      </html>
-    `)
-    win.document.close()
   }
 
   return (
@@ -116,7 +242,6 @@ const QrCodePage = () => {
                       Imprimer
                     </button>
                     
-                    {/* CORRECTION ICI : Rétablissement de la balise ouvrante <a> */}
                     <a
                       href={qr.scanUrl}
                       target="_blank"

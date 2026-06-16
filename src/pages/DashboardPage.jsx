@@ -10,6 +10,7 @@ const DashboardPage = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const [activePage, setActivePage] = useState('overview')
+  const [sidebarOpen, setSidebarOpen] = useState(false) // 📱 État pour le menu mobile
 
   const { data, isLoading } = useQuery({
     queryKey: ['stats'],
@@ -33,8 +34,19 @@ const DashboardPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col fixed h-full">
+      
+      {/* 📱 Overlay mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* 🧭 Sidebar Responsive */}
+      <aside className={`w-64 bg-white border-r border-gray-100 flex flex-col fixed h-full z-30 transition-transform duration-300 ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      }`}>
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-orange-500 rounded-2xl flex items-center justify-center shadow-md">
@@ -49,8 +61,8 @@ const DashboardPage = () => {
 
         <div className="p-4 border-b border-gray-100">
           <div className="bg-orange-50 rounded-xl p-3">
-            <p className="font-semibold text-gray-800 text-sm">{restaurant?.name}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{restaurant?.email}</p>
+            <p className="font-semibold text-gray-800 text-sm truncate">{restaurant?.name}</p>
+            <p className="text-xs text-gray-400 mt-0.5 truncate">{restaurant?.email}</p>
           </div>
         </div>
 
@@ -59,6 +71,7 @@ const DashboardPage = () => {
             <button
               key={item.id}
               onClick={() => {
+                setSidebarOpen(false) // Ferme la sidebar sur mobile après un clic
                 if (item.id === 'qrcode') {
                   navigate('/qrcode')
                 } else {
@@ -87,19 +100,28 @@ const DashboardPage = () => {
         </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 ml-64">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-100 px-8 py-5 flex items-center justify-between sticky top-0 z-10">
-          <div>
-            <h1 className="text-xl font-bold text-gray-800">
-              {activePage === 'overview' && 'Vue générale'}
-              {activePage === 'checkins' && 'Check-ins récents'}
-              {activePage === 'clients' && 'Mes clients'}
-            </h1>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
+      {/* 💻 Main Content */}
+      <main className="flex-1 lg:ml-64 min-w-0 transition-all duration-300">
+        
+        {/* 📋 Header avec bouton Hamburger */}
+        <div className="bg-white border-b border-gray-100 px-6 py-5 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="lg:hidden w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center text-gray-600 active:scale-95 transition-transform"
+            >
+              ☰
+            </button>
+            <div>
+              <h1 className="text-xl font-bold text-gray-800">
+                {activePage === 'overview' && 'Vue générale'}
+                {activePage === 'checkins' && 'Check-ins récents'}
+                {activePage === 'clients' && 'Mes clients'}
+              </h1>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -107,12 +129,12 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        <div className="p-8">
+        <div className="p-4 sm:p-6 lg:p-8">
           {/* OVERVIEW */}
           {activePage === 'overview' && (
             <div className="space-y-6">
               {/* Stats cards */}
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                   { label: 'Clients fidèles', value: data?.totalClients ?? '—', icon: '👥', color: 'bg-blue-50', iconBg: 'bg-blue-100', trend: '+12%' },
                   { label: 'Check-ins total', value: data?.totalCheckins ?? '—', icon: '✅', color: 'bg-green-50', iconBg: 'bg-green-100', trend: '+8%' },
@@ -131,7 +153,7 @@ const DashboardPage = () => {
               </div>
 
               {/* Chart */}
-              <div className="bg-white rounded-2xl border border-gray-100 p-6">
+              <div className="bg-white rounded-2xl border border-gray-100 p-6 overflow-hidden">
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h2 className="font-semibold text-gray-800">Activité des 7 derniers jours</h2>
@@ -161,22 +183,24 @@ const DashboardPage = () => {
               </div>
 
               {/* Recent checkins + top clients */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white rounded-2xl border border-gray-100 p-6">
                   <h2 className="font-semibold text-gray-800 mb-4">Activité récente</h2>
                   <div className="space-y-3">
                     {isLoading ? (
                       <p className="text-gray-300 text-sm text-center py-4">Chargement...</p>
+                    ) : data?.recentCheckins?.length === 0 ? (
+                      <p className="text-gray-400 text-sm text-center py-4">Aucune activité récente</p>
                     ) : data?.recentCheckins?.slice(0, 5).map((c) => (
-                      <div key={c.id} className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-sm">👤</div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-700">{c.loyaltyCard.user.phone}</p>
+                      <div key={c.id} className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3 truncate">
+                          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-sm flex-shrink-0">👤</div>
+                          <div className="truncate">
+                            <p className="text-sm font-medium text-gray-700 truncate">{c.loyaltyCard.user.phone}</p>
                             <p className="text-xs text-gray-400">{c.loyaltyCard.checkCount}/{restaurant?.checksRequired || 10} visites</p>
                           </div>
                         </div>
-                        <span className="text-xs text-gray-300">
+                        <span className="text-xs text-gray-300 flex-shrink-0">
                           {new Date(c.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
@@ -189,10 +213,12 @@ const DashboardPage = () => {
                   <div className="space-y-3">
                     {isLoading ? (
                       <p className="text-gray-300 text-sm text-center py-4">Chargement...</p>
+                    ) : data?.topClients?.length === 0 ? (
+                      <p className="text-gray-400 text-sm text-center py-4">Aucun client pour le moment</p>
                     ) : data?.topClients?.map((c, i) => (
-                      <div key={c.id} className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                      <div key={c.id} className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3 truncate">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
                             i === 0 ? 'bg-yellow-100 text-yellow-600' :
                             i === 1 ? 'bg-gray-100 text-gray-500' :
                             i === 2 ? 'bg-orange-100 text-orange-600' :
@@ -200,12 +226,12 @@ const DashboardPage = () => {
                           }`}>
                             {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
                           </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-700">{c.user.phone}</p>
+                          <div className="truncate">
+                            <p className="text-sm font-medium text-gray-700 truncate">{c.user.phone}</p>
                             <p className="text-xs text-gray-400">{c.totalChecks} visites au total</p>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex-shrink-0">
                           <p className="text-sm font-bold text-orange-500">{c.checkCount}/{restaurant?.checksRequired || 10}</p>
                           <p className="text-xs text-gray-300">en cours</p>
                         </div>
@@ -219,24 +245,24 @@ const DashboardPage = () => {
 
           {/* CHECKINS */}
           {activePage === 'checkins' && (
-            <div className="bg-white rounded-2xl border border-gray-100">
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
               <div className="p-6 border-b border-gray-100">
                 <h2 className="font-semibold text-gray-800">Tous les check-ins</h2>
                 <p className="text-xs text-gray-400 mt-1">{data?.totalCheckins} check-ins au total</p>
               </div>
               <div className="divide-y divide-gray-50">
                 {data?.recentCheckins?.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                  <div key={c.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors gap-2">
+                    <div className="flex items-center gap-4 truncate">
+                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
                         <span>✅</span>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-800">{c.loyaltyCard.user.phone}</p>
+                      <div className="truncate">
+                        <p className="font-medium text-gray-800 truncate">{c.loyaltyCard.user.phone}</p>
                         <p className="text-xs text-gray-400">Progression : {c.loyaltyCard.checkCount}/{restaurant?.checksRequired || 10} visites</p>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right flex-shrink-0">
                       <p className="text-sm text-gray-600">
                         {new Date(c.createdAt).toLocaleDateString('fr-FR')}
                       </p>
@@ -252,36 +278,37 @@ const DashboardPage = () => {
 
           {/* CLIENTS */}
           {activePage === 'clients' && (
-            <div className="bg-white rounded-2xl border border-gray-100">
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
               <div className="p-6 border-b border-gray-100">
                 <h2 className="font-semibold text-gray-800">Mes clients fidèles</h2>
                 <p className="text-xs text-gray-400 mt-1">{data?.totalClients} clients inscrits</p>
               </div>
               <div className="divide-y divide-gray-50">
                 {data?.topClients?.map((c, i) => (
-                  <div key={c.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
+                  <div key={c.id} className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors gap-4">
+                    <div className="flex items-center gap-4 truncate">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 ${
                         i === 0 ? 'bg-yellow-100' : i === 1 ? 'bg-gray-100' : i === 2 ? 'bg-orange-100' : 'bg-gray-50'
                       }`}>
                         {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-800">{c.user.phone}</p>
+                      <div className="truncate">
+                        <p className="font-medium text-gray-800 truncate">{c.user.phone}</p>
                         <p className="text-xs text-gray-400">Client depuis le {new Date(c.createdAt).toLocaleDateString('fr-FR')}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-orange-500">{c.totalChecks}</p>
-                      <p className="text-xs text-gray-400">visites totales</p>
-                      <div className="mt-1">
-                        <div className="w-24 bg-gray-100 rounded-full h-1.5">
+                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 border-t sm:border-0 pt-2 sm:pt-0">
+                      <div className="sm:text-right">
+                        <p className="text-lg font-bold text-orange-500">{c.totalChecks} <span className="text-xs text-gray-400 font-normal">visites</span></p>
+                      </div>
+                      <div className="w-32">
+                        <div className="w-full bg-gray-100 rounded-full h-1.5">
                           <div
-                            className="bg-orange-500 h-1.5 rounded-full"
+                            className="bg-orange-500 h-1.5 rounded-full transition-all"
                             style={{ width: `${Math.min((c.checkCount / (restaurant?.checksRequired || 10)) * 100, 100)}%` }}
                           />
                         </div>
-                        <p className="text-xs text-gray-300 mt-0.5">{c.checkCount}/{restaurant?.checksRequired || 10} en cours</p>
+                        <p className="text-[10px] text-gray-400 text-right mt-0.5">{c.checkCount}/{restaurant?.checksRequired || 10} en cours</p>
                       </div>
                     </div>
                   </div>

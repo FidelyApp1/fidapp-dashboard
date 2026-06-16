@@ -1,7 +1,7 @@
 import { useAuth } from '../context/AuthContext'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { getStats } from '../api/client'
+import { getStats, getMe } from '../api/client'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useState } from 'react'
 
@@ -12,11 +12,53 @@ const DashboardPage = () => {
   const [activePage, setActivePage] = useState('overview')
   const [sidebarOpen, setSidebarOpen] = useState(false) // 📱 État pour le menu mobile
 
+  // 📥 Ajout des deux states de recherche en haut du composant
+  const [searchCheckins, setSearchCheckins] = useState('')
+  const [searchClients, setSearchClients] = useState('')
+
+  // 1️⃣ Récupération du profil frais (pour la suspension et la configuration locale)
+  const { data: meData } = useQuery({
+    queryKey: ['me'],
+    queryFn: getMe,
+    refetchInterval: 30000
+  })
+
+  // 2️⃣ Récupération des statistiques générales
   const { data, isLoading } = useQuery({
     queryKey: ['stats'],
     queryFn: getStats,
     refetchInterval: 30000
   })
+
+  // Interception de sécurité : Si le compte est suspendu, on bloque l'affichage complet
+  if (meData?.restaurant?.suspended) {
+    return (
+      <div className="min-h-screen bg-red-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-8 max-w-sm w-full text-center">
+          <p className="text-6xl mb-4 animate-bounce">🚫</p>
+          <h1 className="text-2xl font-bold text-red-600">Compte suspendu</h1>
+          <p className="text-gray-500 mt-2 text-sm">
+            L'accès à votre tableau de bord a été temporairement restreint.
+          </p>
+          <p className="text-gray-500 mt-1 text-sm font-medium">
+            Contactez FidApp pour plus d'informations.
+          </p>
+          <div className="mt-6 pt-4 border-t border-gray-100 flex flex-col gap-3">
+            <span className="text-orange-500 font-semibold text-sm">fidapp.ma</span>
+            <button 
+              onClick={logout}
+              className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+            >
+              Se déconnecter
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Variable unifiée pour le nombre de tampons requis
+  const checksRequired = meData?.restaurant?.checksRequired || restaurant?.checksRequired || 10
 
   const chartData = data?.dailyData
     ? Object.entries(data.dailyData).map(([date, count]) => ({
@@ -61,8 +103,8 @@ const DashboardPage = () => {
 
         <div className="p-4 border-b border-gray-100">
           <div className="bg-orange-50 rounded-xl p-3">
-            <p className="font-semibold text-gray-800 text-sm truncate">{restaurant?.name}</p>
-            <p className="text-xs text-gray-400 mt-0.5 truncate">{restaurant?.email}</p>
+            <p className="font-semibold text-gray-800 text-sm truncate">{meData?.restaurant?.name || restaurant?.name}</p>
+            <p className="text-xs text-gray-400 mt-0.5 truncate">{meData?.restaurant?.email || restaurant?.email}</p>
           </div>
         </div>
 
@@ -71,7 +113,7 @@ const DashboardPage = () => {
             <button
               key={item.id}
               onClick={() => {
-                setSidebarOpen(false) // Ferme la sidebar sur mobile après un clic
+                setSidebarOpen(false)
                 if (item.id === 'qrcode') {
                   navigate('/qrcode')
                 } else {
@@ -196,8 +238,10 @@ const DashboardPage = () => {
                         <div className="flex items-center gap-3 truncate">
                           <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-sm flex-shrink-0">👤</div>
                           <div className="truncate">
-                            <p className="text-sm font-medium text-gray-700 truncate">{c.loyaltyCard.user.phone}</p>
-                            <p className="text-xs text-gray-400">{c.loyaltyCard.checkCount}/{restaurant?.checksRequired || 10} visites</p>
+                            <p className="text-sm font-medium text-gray-700 truncate">
+                              {c.loyaltyCard.user.name ? `${c.loyaltyCard.user.name} — ` : ''}{c.loyaltyCard.user.phone}
+                            </p>
+                            <p className="text-xs text-gray-400">{c.loyaltyCard.checkCount}/{checksRequired} visites</p>
                           </div>
                         </div>
                         <span className="text-xs text-gray-300 flex-shrink-0">
@@ -227,12 +271,14 @@ const DashboardPage = () => {
                             {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
                           </div>
                           <div className="truncate">
-                            <p className="text-sm font-medium text-gray-700 truncate">{c.user.phone}</p>
+                            <p className="text-sm font-medium text-gray-700 truncate">
+                              {c.user.name ? `${c.user.name} — ` : ''}{c.user.phone}
+                            </p>
                             <p className="text-xs text-gray-400">{c.totalChecks} visites au total</p>
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <p className="text-sm font-bold text-orange-500">{c.checkCount}/{restaurant?.checksRequired || 10}</p>
+                          <p className="text-sm font-bold text-orange-500">{c.checkCount}/{checksRequired}</p>
                           <p className="text-xs text-gray-300">en cours</p>
                         </div>
                       </div>
@@ -245,74 +291,94 @@ const DashboardPage = () => {
 
           {/* CHECKINS */}
           {activePage === 'checkins' && (
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="p-6 border-b border-gray-100">
-                <h2 className="font-semibold text-gray-800">Tous les check-ins</h2>
-                <p className="text-xs text-gray-400 mt-1">{data?.totalCheckins} check-ins au total</p>
+            <div className="bg-white rounded-2xl border border-gray-100">
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h2 className="font-semibold text-gray-800">Tous les check-ins</h2>
+                  <p className="text-xs text-gray-400 mt-1">{data?.totalCheckins} check-ins au total</p>
+                </div>
+                <input
+                  value={searchCheckins}
+                  onChange={(e) => setSearchCheckins(e.target.value)}
+                  placeholder="Rechercher un numéro..."
+                  className="px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400"
+                />
               </div>
               <div className="divide-y divide-gray-50">
-                {data?.recentCheckins?.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors gap-2">
-                    <div className="flex items-center gap-4 truncate">
-                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span>✅</span>
+                {data?.recentCheckins
+                  ?.filter(c => c.loyaltyCard.user.phone.includes(searchCheckins) ||
+                    (c.loyaltyCard.user.name && c.loyaltyCard.user.name.toLowerCase().includes(searchCheckins.toLowerCase())))
+                  .map((c) => (
+                    <div key={c.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                          <span>✅</span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-800">
+                            {c.loyaltyCard.user.name ? `${c.loyaltyCard.user.name} — ` : ''}{c.loyaltyCard.user.phone}
+                          </p>
+                          <p className="text-xs text-gray-400">Progression : {c.loyaltyCard.checkCount}/{checksRequired} visites</p>
+                        </div>
                       </div>
-                      <div className="truncate">
-                        <p className="font-medium text-gray-800 truncate">{c.loyaltyCard.user.phone}</p>
-                        <p className="text-xs text-gray-400">Progression : {c.loyaltyCard.checkCount}/{restaurant?.checksRequired || 10} visites</p>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-600">{new Date(c.createdAt).toLocaleDateString('fr-FR')}</p>
+                        <p className="text-xs text-gray-300">{new Date(c.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-sm text-gray-600">
-                        {new Date(c.createdAt).toLocaleDateString('fr-FR')}
-                      </p>
-                      <p className="text-xs text-gray-300">
-                        {new Date(c.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           )}
 
-          {/* CLIENTS */}
+          {/* CLIENTS — Nouvelle Section Remplacée 🚀 */}
           {activePage === 'clients' && (
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="p-6 border-b border-gray-100">
-                <h2 className="font-semibold text-gray-800">Mes clients fidèles</h2>
-                <p className="text-xs text-gray-400 mt-1">{data?.totalClients} clients inscrits</p>
+            <div className="bg-white rounded-2xl border border-gray-100">
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h2 className="font-semibold text-gray-800">Mes clients fidèles</h2>
+                  <p className="text-xs text-gray-400 mt-1">{data?.totalClients} clients inscrits</p>
+                </div>
+                <input
+                  value={searchClients}
+                  onChange={(e) => setSearchClients(e.target.value)}
+                  placeholder="Rechercher..."
+                  className="px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400"
+                />
               </div>
               <div className="divide-y divide-gray-50">
-                {data?.topClients?.map((c, i) => (
-                  <div key={c.id} className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors gap-4">
-                    <div className="flex items-center gap-4 truncate">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 ${
-                        i === 0 ? 'bg-yellow-100' : i === 1 ? 'bg-gray-100' : i === 2 ? 'bg-orange-100' : 'bg-gray-50'
-                      }`}>
-                        {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
-                      </div>
-                      <div className="truncate">
-                        <p className="font-medium text-gray-800 truncate">{c.user.phone}</p>
-                        <p className="text-xs text-gray-400">Client depuis le {new Date(c.createdAt).toLocaleDateString('fr-FR')}</p>
-                      </div>
-                    </div>
-                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 border-t sm:border-0 pt-2 sm:pt-0">
-                      <div className="sm:text-right">
-                        <p className="text-lg font-bold text-orange-500">{c.totalChecks} <span className="text-xs text-gray-400 font-normal">visites</span></p>
-                      </div>
-                      <div className="w-32">
-                        <div className="w-full bg-gray-100 rounded-full h-1.5">
-                          <div
-                            className="bg-orange-500 h-1.5 rounded-full transition-all"
-                            style={{ width: `${Math.min((c.checkCount / (restaurant?.checksRequired || 10)) * 100, 100)}%` }}
-                          />
+                {data?.topClients
+                  ?.filter(c =>
+                    c.user.phone.includes(searchClients) ||
+                    (c.user.name && c.user.name.toLowerCase().includes(searchClients.toLowerCase()))
+                  )
+                  .map((c, i) => (
+                    <div key={c.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
+                          i === 0 ? 'bg-yellow-100' : i === 1 ? 'bg-gray-100' : i === 2 ? 'bg-orange-100' : 'bg-gray-50'
+                        }`}>
+                          {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
                         </div>
-                        <p className="text-[10px] text-gray-400 text-right mt-0.5">{c.checkCount}/{restaurant?.checksRequired || 10} en cours</p>
+                        <div>
+                          <p className="font-medium text-gray-800">
+                            {c.user.name ? `${c.user.name} — ` : ''}{c.user.phone}
+                          </p>
+                          <p className="text-xs text-gray-400">Client depuis le {new Date(c.createdAt).toLocaleDateString('fr-FR')}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-orange-500">{c.totalChecks}</p>
+                        <p className="text-xs text-gray-400">visites totales</p>
+                        <div className="mt-1">
+                          <div className="w-24 bg-gray-100 rounded-full h-1.5">
+                            <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: `${Math.min((c.checkCount / checksRequired) * 100, 100)}%` }} />
+                          </div>
+                          <p className="text-xs text-gray-300 mt-0.5">{c.checkCount}/{checksRequired} en cours</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           )}

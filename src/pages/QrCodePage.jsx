@@ -8,9 +8,9 @@ const QrCodePage = () => {
   const { restaurant } = useAuth()
   const [qrData, setQrData] = useState(null)
   const [generating, setGenerating] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(3300) // 55 minutes en secondes
+  const [timeLeft, setTimeLeft] = useState(3300) // Valeur par défaut (55 min)
 
-  // 1️⃣ handleGenerate reste stable
+  // 1️⃣ Génération d'un nouveau QR Code
   const handleGenerate = useCallback(async () => {
     setGenerating(true)
     try {
@@ -18,7 +18,6 @@ const QrCodePage = () => {
       const data = await getMyQrCodes()
       if (data?.qrCodes && data.qrCodes.length > 0) {
         setQrData(data.qrCodes[0])
-        setTimeLeft(3300)
       }
     } catch (err) {
       console.error("Erreur lors de la génération du QR Code :", err)
@@ -27,16 +26,14 @@ const QrCodePage = () => {
     }
   }, [])
 
-  // 2️⃣ loadQr n'appelle plus handleGenerate de manière synchrone
+  // 2️⃣ Chargement du QR Code existant ou déclenchement asynchrone de la génération
   const loadQr = useCallback(async () => {
     try {
       const data = await getMyQrCodes()
       if (data?.qrCodes && data.qrCodes.length > 0) {
         setQrData(data.qrCodes[0])
-        setTimeLeft(3300)
       } else {
-        // Enveloppé dans une promesse résolue immédiate pour forcer React 
-        // à finir son rendu actuel avant de déclencher la génération.
+        // Force React à finir son rendu actuel avant de déclencher la génération
         Promise.resolve().then(() => {
           handleGenerate()
         })
@@ -46,23 +43,41 @@ const QrCodePage = () => {
     }
   }, [handleGenerate])
 
-  // 3️⃣ Orchestration des timers et du chargement initial
+  // 3️⃣ Premier chargement et rafraîchissement global toutes les 55 minutes
   useEffect(() => {
     loadQr()
-
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          // Utilisation du même pattern asynchrone lors de l'expiration
-          Promise.resolve().then(() => loadQr())
-          return 3300
-        }
-        return prev - 1
-      })
-    }, 1000)
-
-    return () => clearInterval(timer)
+    const refreshInterval = setInterval(loadQr, 55 * 60 * 1000)
+    return () => clearInterval(refreshInterval)
   }, [loadQr])
+
+  // 4️⃣ Synchronisation du compte à rebours basé sur l'expiration du JWT
+  useEffect(() => {
+    if (!qrData?.code) return
+
+    try {
+      // Décodage de la charge utile du JWT (payload)
+      const token = qrData.code
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      const expiresAt = payload.exp * 1000
+
+      const updateTimer = () => {
+        const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))
+        setTimeLeft(remaining)
+        
+        if (remaining === 0) {
+          loadQr()
+        }
+      }
+
+      updateTimer() // Exécution immédiate pour éviter le saut d'affichage
+      const timer = setInterval(updateTimer, 1000)
+      
+      return () => clearInterval(timer)
+    } catch (error) {
+      console.error("Erreur lors du décodage du token JWT :", error)
+      setTimeLeft(3300) // Repli de secours sur 55 min
+    }
+  }, [qrData, loadQr])
 
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60)

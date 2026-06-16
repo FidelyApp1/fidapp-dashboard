@@ -29,5 +29,8 @@ export const getMyQrCodes = async () => {
   const res = await api.get('/qrcode/mine')
   return res.data
 }
-
+export const getMe = async () => {
+  const res = await api.get('/auth/me')
+  return res.data
+}
 export default api

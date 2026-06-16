@@ -1,21 +1,15 @@
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getStats } from '../api/client'
-
-const StatCard = ({ emoji, label, value, color }) => (
-  <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-50">
-    <div className={`w-12 h-12 ${color} rounded-2xl flex items-center justify-center mb-4`}>
-      <span className="text-2xl">{emoji}</span>
-    </div>
-    <p className="text-3xl font-bold text-gray-800">{value}</p>
-    <p className="text-sm text-gray-400 mt-1">{label}</p>
-  </div>
-)
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { useState } from 'react'
 
 const DashboardPage = () => {
   const { restaurant, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const [activePage, setActivePage] = useState('overview')
 
   const { data, isLoading } = useQuery({
     queryKey: ['stats'],
@@ -23,77 +17,280 @@ const DashboardPage = () => {
     refetchInterval: 30000
   })
 
+  const chartData = data?.dailyData
+    ? Object.entries(data.dailyData).map(([date, count]) => ({
+        day: new Date(date).toLocaleDateString('fr-FR', { weekday: 'short' }),
+        checkins: count
+      }))
+    : []
+
+  const navItems = [
+    { id: 'overview', label: 'Vue générale', icon: '📊' },
+    { id: 'checkins', label: 'Check-ins', icon: '✅' },
+    { id: 'clients', label: 'Clients', icon: '👥' },
+    { id: 'qrcode', label: 'QR Code', icon: '🔲' },
+  ]
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-orange-500 rounded-2xl flex items-center justify-center">
-            <span className="text-xl">🃏</span>
-          </div>
-          <div>
-            <p className="font-semibold text-gray-800">{restaurant?.name}</p>
-            <p className="text-xs text-gray-400">Dashboard</p>
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Sidebar */}
+      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col fixed h-full">
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-orange-500 rounded-2xl flex items-center justify-center shadow-md">
+              <span className="text-xl">🃏</span>
+            </div>
+            <div>
+              <p className="font-bold text-gray-800 text-sm">FidApp</p>
+              <p className="text-xs text-gray-400">Dashboard</p>
+            </div>
           </div>
         </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => navigate('/qrcode')}
-            className="bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
-          >
-            Mon QR Code
-          </button>
+
+        <div className="p-4 border-b border-gray-100">
+          <div className="bg-orange-50 rounded-xl p-3">
+            <p className="font-semibold text-gray-800 text-sm">{restaurant?.name}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{restaurant?.email}</p>
+          </div>
+        </div>
+
+        <nav className="flex-1 p-4 space-y-1">
+          {navItems.map(item => (
+            <button
+              key={item.id}
+              onClick={() => {
+                if (item.id === 'qrcode') {
+                  navigate('/qrcode')
+                } else {
+                  setActivePage(item.id)
+                }
+              }}
+              className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all flex items-center gap-3 ${
+                activePage === item.id
+                  ? 'bg-orange-500 text-white shadow-md'
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+              }`}
+            >
+              <span>{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="p-4 border-t border-gray-100">
           <button
             onClick={logout}
-            className="text-gray-400 hover:text-gray-600 px-4 py-2 rounded-xl text-sm transition-colors"
+            className="w-full text-left px-4 py-2 rounded-xl text-sm text-gray-400 hover:text-red-400 hover:bg-red-50 transition-all flex items-center gap-2"
           >
-            Déconnexion
+            <span>🚪</span> Déconnexion
           </button>
         </div>
-      </nav>
+      </aside>
 
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-800">Bonjour 👋</h1>
-          <p className="text-gray-400 mt-1">Voici un aperçu de votre fidélité client</p>
+      {/* Main */}
+      <main className="flex-1 ml-64">
+        {/* Header */}
+        <div className="bg-white border-b border-gray-100 px-8 py-5 flex items-center justify-between sticky top-0 z-10">
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">
+              {activePage === 'overview' && 'Vue générale'}
+              {activePage === 'checkins' && 'Check-ins récents'}
+              {activePage === 'clients' && 'Mes clients'}
+            </h1>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            <span className="text-xs text-gray-400">Temps réel</span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <StatCard emoji="👥" label="Clients inscrits" value={isLoading ? '...' : data?.totalClients ?? 0} color="bg-blue-50" />
-          <StatCard emoji="✅" label="Check-ins total" value={isLoading ? '...' : data?.totalCheckins ?? 0} color="bg-green-50" />
-          <StatCard emoji="🎁" label="Rewards émis" value={isLoading ? '...' : data?.totalRewards ?? 0} color="bg-orange-50" />
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-50 p-6">
-          <h2 className="font-semibold text-gray-700 mb-4">Activité récente</h2>
-          {isLoading ? (
-            <div className="text-center py-8 text-gray-300">Chargement...</div>
-          ) : data?.recentCheckins?.length === 0 ? (
-            <div className="text-center py-12">
-              <span className="text-4xl">📊</span>
-              <p className="text-gray-400 mt-3">Les statistiques apparaîtront ici</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {data?.recentCheckins?.map((checkin) => (
-                <div key={checkin.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-orange-100 rounded-full flex items-center justify-center">
-                      <span className="text-sm">👤</span>
+        <div className="p-8">
+          {/* OVERVIEW */}
+          {activePage === 'overview' && (
+            <div className="space-y-6">
+              {/* Stats cards */}
+              <div className="grid grid-cols-4 gap-4">
+                {[
+                  { label: 'Clients fidèles', value: data?.totalClients ?? '—', icon: '👥', color: 'bg-blue-50', iconBg: 'bg-blue-100', trend: '+12%' },
+                  { label: 'Check-ins total', value: data?.totalCheckins ?? '—', icon: '✅', color: 'bg-green-50', iconBg: 'bg-green-100', trend: '+8%' },
+                  { label: 'Ce mois', value: data?.checkinsThisMonth ?? '—', icon: '📅', color: 'bg-purple-50', iconBg: 'bg-purple-100', trend: 'mois en cours' },
+                  { label: 'Rewards émis', value: data?.totalRewards ?? '—', icon: '🎁', color: 'bg-orange-50', iconBg: 'bg-orange-100', trend: 'offerts' },
+                ].map((stat, i) => (
+                  <div key={i} className={`${stat.color} rounded-2xl p-5`}>
+                    <div className={`w-10 h-10 ${stat.iconBg} rounded-xl flex items-center justify-center mb-3`}>
+                      <span className="text-xl">{stat.icon}</span>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">{checkin.loyaltyCard.user.phone}</p>
-                      <p className="text-xs text-gray-400">{checkin.loyaltyCard.checkCount}/10 visites</p>
+                    <p className="text-3xl font-bold text-gray-800">{isLoading ? '...' : stat.value}</p>
+                    <p className="text-sm text-gray-500 mt-1">{stat.label}</p>
+                    <p className="text-xs text-gray-400 mt-1">{stat.trend}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Chart */}
+              <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="font-semibold text-gray-800">Activité des 7 derniers jours</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Nombre de check-ins par jour</p>
+                  </div>
+                  <div className="bg-orange-50 text-orange-500 text-xs font-semibold px-3 py-1 rounded-full">
+                    7 jours
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="colorCheckins" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{ background: '#fff', border: '1px solid #f1f1f1', borderRadius: '12px', fontSize: '12px' }}
+                      formatter={(value) => [`${value} check-ins`, '']}
+                    />
+                    <Area type="monotone" dataKey="checkins" stroke="#f97316" strokeWidth={2} fill="url(#colorCheckins)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Recent checkins + top clients */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                  <h2 className="font-semibold text-gray-800 mb-4">Activité récente</h2>
+                  <div className="space-y-3">
+                    {isLoading ? (
+                      <p className="text-gray-300 text-sm text-center py-4">Chargement...</p>
+                    ) : data?.recentCheckins?.slice(0, 5).map((c) => (
+                      <div key={c.id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-sm">👤</div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">{c.loyaltyCard.user.phone}</p>
+                            <p className="text-xs text-gray-400">{c.loyaltyCard.checkCount}/{restaurant?.checksRequired || 10} visites</p>
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-300">
+                          {new Date(c.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                  <h2 className="font-semibold text-gray-800 mb-4">Top clients 🏆</h2>
+                  <div className="space-y-3">
+                    {isLoading ? (
+                      <p className="text-gray-300 text-sm text-center py-4">Chargement...</p>
+                    ) : data?.topClients?.map((c, i) => (
+                      <div key={c.id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                            i === 0 ? 'bg-yellow-100 text-yellow-600' :
+                            i === 1 ? 'bg-gray-100 text-gray-500' :
+                            i === 2 ? 'bg-orange-100 text-orange-600' :
+                            'bg-gray-50 text-gray-400'
+                          }`}>
+                            {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">{c.user.phone}</p>
+                            <p className="text-xs text-gray-400">{c.totalChecks} visites au total</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-orange-500">{c.checkCount}/{restaurant?.checksRequired || 10}</p>
+                          <p className="text-xs text-gray-300">en cours</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CHECKINS */}
+          {activePage === 'checkins' && (
+            <div className="bg-white rounded-2xl border border-gray-100">
+              <div className="p-6 border-b border-gray-100">
+                <h2 className="font-semibold text-gray-800">Tous les check-ins</h2>
+                <p className="text-xs text-gray-400 mt-1">{data?.totalCheckins} check-ins au total</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {data?.recentCheckins?.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <span>✅</span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-800">{c.loyaltyCard.user.phone}</p>
+                        <p className="text-xs text-gray-400">Progression : {c.loyaltyCard.checkCount}/{restaurant?.checksRequired || 10} visites</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-600">
+                        {new Date(c.createdAt).toLocaleDateString('fr-FR')}
+                      </p>
+                      <p className="text-xs text-gray-300">
+                        {new Date(c.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
                     </div>
                   </div>
-                  <span className="text-xs text-gray-300">
-                    {new Date(checkin.createdAt).toLocaleDateString('fr-FR')}
-                  </span>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* CLIENTS */}
+          {activePage === 'clients' && (
+            <div className="bg-white rounded-2xl border border-gray-100">
+              <div className="p-6 border-b border-gray-100">
+                <h2 className="font-semibold text-gray-800">Mes clients fidèles</h2>
+                <p className="text-xs text-gray-400 mt-1">{data?.totalClients} clients inscrits</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {data?.topClients?.map((c, i) => (
+                  <div key={c.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
+                        i === 0 ? 'bg-yellow-100' : i === 1 ? 'bg-gray-100' : i === 2 ? 'bg-orange-100' : 'bg-gray-50'
+                      }`}>
+                        {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-800">{c.user.phone}</p>
+                        <p className="text-xs text-gray-400">Client depuis le {new Date(c.createdAt).toLocaleDateString('fr-FR')}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-orange-500">{c.totalChecks}</p>
+                      <p className="text-xs text-gray-400">visites totales</p>
+                      <div className="mt-1">
+                        <div className="w-24 bg-gray-100 rounded-full h-1.5">
+                          <div
+                            className="bg-orange-500 h-1.5 rounded-full"
+                            style={{ width: `${Math.min((c.checkCount / (restaurant?.checksRequired || 10)) * 100, 100)}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-gray-300 mt-0.5">{c.checkCount}/{restaurant?.checksRequired || 10} en cours</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
-      </div>
+      </main>
     </div>
   )
 }

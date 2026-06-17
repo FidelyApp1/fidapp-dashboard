@@ -10,17 +10,21 @@ const LoginPage = () => {
   const [error, setError] = useState('')
   const { loginUser } = useAuth()
   const navigate = useNavigate()
-const [showPassword, setShowPassword] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
-  const handleSubmit = async () => {
+  // ⚡ Ajout du paramètre "e" pour intercepter l'événement HTML
+  const handleSubmit = async (e) => {
+    e.preventDefault() // 🚫 Bloque le rafraîchissement automatique de la page
+    
     setLoading(true)
     setError('')
     try {
       const data = await login(email, password)
       loginUser(data.token, data.restaurant)
       navigate('/dashboard')
-    } catch {
-      setError('Email ou mot de passe incorrect')
+    } catch (err) {
+      // Optionnel : affiche l'erreur réelle du serveur si nécessaire pour débugger
+      setError(err.response?.data?.error || 'Email ou mot de passe incorrect')
     } finally {
       setLoading(false)
     }
@@ -57,7 +61,7 @@ const [showPassword, setShowPassword] = useState(false)
               />
             </div>
 
-            {/* Champ Mot de passe avec bouton "Afficher" */}
+            {/* Champ Mot de passe */}
             <div className="mb-6">
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Mot de passe</label>
               <div className="relative flex items-center">
@@ -73,7 +77,7 @@ const [showPassword, setShowPassword] = useState(false)
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 bottom-3 text-gray-400 hover:text-gray-600 text-lg transition-colors select-none"
-                  tabIndex="-1" // Évite que la touche Tabulation ne s'arrête inutilement sur l'œil
+                  tabIndex="-1"
                 >
                   {showPassword ? '🙈' : '👁️'}
                 </button>

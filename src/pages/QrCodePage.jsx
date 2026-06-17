@@ -50,34 +50,24 @@ const QrCodePage = () => {
     return () => clearInterval(refreshInterval)
   }, [loadQr])
 
-  // 4️⃣ Synchronisation du compte à rebours basé sur l'expiration du JWT
+  // 4️⃣ Synchronisation du compte à rebours basé sur l'expiration du JWT (Fix 1 appliqué 🛠️)
   useEffect(() => {
     if (!qrData?.code) return
-
-    try {
-      // Décodage de la charge utile du JWT (payload)
-      const token = qrData.code
-      const payload = JSON.parse(atob(token.split('.')[1]))
-      const expiresAt = payload.exp * 1000
-
-      const updateTimer = () => {
+    const updateTimer = () => {
+      try {
+        const payload = JSON.parse(atob(qrData.code.split('.')[1]))
+        const expiresAt = payload.exp * 1000
         const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))
         setTimeLeft(remaining)
-        
-        if (remaining === 0) {
-          loadQr()
-        }
+        if (remaining === 0) loadQr()
+      } catch {
+        setTimeLeft(3600)
       }
-
-      updateTimer() // Exécution immédiate pour éviter le saut d'affichage
-      const timer = setInterval(updateTimer, 1000)
-      
-      return () => clearInterval(timer)
-    } catch (error) {
-      console.error("Erreur lors du décodage du token JWT :", error)
-      setTimeLeft(3300) // Repli de secours sur 55 min
     }
-  }, [qrData, loadQr])
+    updateTimer()
+    const timer = setInterval(updateTimer, 1000)
+    return () => clearInterval(timer)
+  }, [qrData?.code, loadQr])
 
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60)

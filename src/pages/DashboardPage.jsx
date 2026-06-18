@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getStats, getMe } from '../api/client'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useState, useEffect, useMemo } from 'react'
+import Logo from '../assets/logo.jsx'
 
 const DashboardPage = () => {
   const { restaurant, logout } = useAuth()
@@ -158,17 +159,18 @@ const DashboardPage = () => {
       <aside className={`w-64 bg-white/90 backdrop-blur-md border-r border-slate-100 flex flex-col fixed h-full z-50 transition-transform duration-300 ease-out lg:translate-x-0 ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
-        {/* Fix 4 — Bouton ✕ dans la sidebar mobile */}
+  {/* 🛠️ Header de la sidebar mis à jour avec ton composant Logo */}
         <div className="p-6 border-b border-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-tr from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20">
-              <span className="text-xl text-white">🃏</span>
+            <div className="w-10 h-10 flex items-center justify-center">
+              <Logo size={36} />
             </div>
             <div>
-              <p className="font-black text-slate-900 tracking-tight text-base">FidApp</p>
+              <p className="font-black text-slate-900 tracking-tight text-base">fid<span className="text-orange-500">app</span></p>
               <p className="text-xs font-semibold text-orange-500/80 uppercase tracking-widest">Business</p>
             </div>
           </div>
+          {/* Fix 4 : Bouton de fermeture sur mobile */}
           <button
             onClick={() => setSidebarOpen(false)}
             className="lg:hidden w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"

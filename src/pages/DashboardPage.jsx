@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getStats, getMe } from '../api/client'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 const DashboardPage = () => {
   const { restaurant, logout } = useAuth()
@@ -51,8 +51,8 @@ const DashboardPage = () => {
   // 3️⃣ Mutation pour sauvegarder les réglages
   const mutation = useMutation({
     mutationFn: async (formData) => {
-      const token = localStorage.getItem('fidapp_token') // Clé corrigée 🔑
-      const response = await fetch('https://fidapp-backend-production.up.railway.app/api/auth/settings', { // URL Production Railway 🌐
+      const token = localStorage.getItem('fidapp_token')
+      const response = await fetch('https://fidapp-backend-production.up.railway.app/api/auth/settings', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -110,9 +110,10 @@ const DashboardPage = () => {
 
   const checksRequired = meData?.restaurant?.checksRequired || restaurant?.checksRequired || 10
 
+  // Fix 5 — Safari date bug
   const chartData = data?.dailyData
     ? Object.entries(data.dailyData).map(([date, count]) => ({
-        day: new Date(date).toLocaleDateString('fr-FR', { weekday: 'short' }),
+        day: new Date(date.replace(/-/g, '/')).toLocaleDateString('fr-FR', { weekday: 'short' }),
         checkins: count
       }))
     : []
@@ -130,6 +131,21 @@ const DashboardPage = () => {
     mutation.mutate(settingsForm)
   }
 
+  // Fix 2 — useMemo pour les filtres
+  const filteredCheckins = useMemo(() => {
+    return data?.recentCheckins?.filter(c =>
+      c.loyaltyCard.user.phone.includes(searchCheckins) ||
+      (c.loyaltyCard.user.name && c.loyaltyCard.user.name.toLowerCase().includes(searchCheckins.toLowerCase()))
+    ) || []
+  }, [data?.recentCheckins, searchCheckins])
+
+  const filteredClients = useMemo(() => {
+    return data?.topClients?.filter(c =>
+      c.user.phone.includes(searchClients) ||
+      (c.user.name && c.user.name.toLowerCase().includes(searchClients.toLowerCase()))
+    ) || []
+  }, [data?.topClients, searchClients])
+
   return (
     <div className="min-h-screen bg-slate-50/50 flex font-sans text-slate-800 antialiased">
       
@@ -142,6 +158,7 @@ const DashboardPage = () => {
       <aside className={`w-64 bg-white/90 backdrop-blur-md border-r border-slate-100 flex flex-col fixed h-full z-50 transition-transform duration-300 ease-out lg:translate-x-0 ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
+        {/* Fix 4 — Bouton ✕ dans la sidebar mobile */}
         <div className="p-6 border-b border-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-tr from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20">
@@ -152,6 +169,12 @@ const DashboardPage = () => {
               <p className="text-xs font-semibold text-orange-500/80 uppercase tracking-widest">Business</p>
             </div>
           </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+          >
+            ✕
+          </button>
         </div>
 
         {/* Info Resto avec le type de Reward actif */}
@@ -367,28 +390,32 @@ const DashboardPage = () => {
                 </div>
               </div>
               <div className="divide-y divide-slate-50">
-                {data?.recentCheckins
-                  ?.filter(c => c.loyaltyCard.user.phone.includes(searchCheckins) ||
-                    (c.loyaltyCard.user.name && c.loyaltyCard.user.name.toLowerCase().includes(searchCheckins.toLowerCase())))
-                  .map((c) => (
-                    <div key={c.id} className="flex items-center justify-between px-6 py-4 hover:bg-slate-50/50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 font-bold">
-                          ✓
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-800 text-sm">
-                            {c.loyaltyCard.user.name ? `${c.loyaltyCard.user.name} • ` : ''}{c.loyaltyCard.user.phone}
-                          </p>
-                          <p className="text-xs font-medium text-slate-400 mt-0.5">Progression carte : <span className="text-orange-500 font-bold">{c.loyaltyCard.checkCount}/{checksRequired}</span></p>
-                        </div>
+                {filteredCheckins.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between px-6 py-4 hover:bg-slate-50/50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 font-bold">
+                        ✓
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-slate-700">{new Date(c.createdAt).toLocaleDateString('fr-FR')}</p>
-                        <p className="text-xs font-semibold text-slate-400 mt-0.5">{new Date(c.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+                      <div>
+                        <p className="font-bold text-slate-800 text-sm">
+                          {c.loyaltyCard.user.name ? `${c.loyaltyCard.user.name} • ` : ''}{c.loyaltyCard.user.phone}
+                        </p>
+                        <p className="text-xs font-medium text-slate-400 mt-0.5">Progression carte : <span className="text-orange-500 font-bold">{c.loyaltyCard.checkCount}/{checksRequired}</span></p>
                       </div>
                     </div>
-                  ))}
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-slate-700">{new Date(c.createdAt).toLocaleDateString('fr-FR')}</p>
+                      <p className="text-xs font-semibold text-slate-400 mt-0.5">{new Date(c.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                  </div>
+                ))}
+                {/* Fix 3 — Message "aucun résultat" checkins */}
+                {filteredCheckins.length === 0 && (
+                  <div className="text-center py-12">
+                    <p className="text-2xl mb-2">🔍</p>
+                    <p className="text-slate-400 text-sm font-medium">Aucun check-in ne correspond à votre recherche</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -409,40 +436,42 @@ const DashboardPage = () => {
                 />
               </div>
               <div className="divide-y divide-slate-50">
-                {data?.topClients
-                  ?.filter(c =>
-                    c.user.phone.includes(searchClients) ||
-                    (c.user.name && c.user.name.toLowerCase().includes(searchClients.toLowerCase()))
-                  )
-                  .map((c, i) => (
-                    <div key={c.id} className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-5 hover:bg-slate-50/50 gap-4 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-slate-50 border border-slate-100 font-bold rounded-xl flex items-center justify-center text-slate-500">
-                          #{i + 1}
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-800 text-sm">
-                            {c.user.name ? `${c.user.name}` : 'Client Anonyme'}
-                          </p>
-                          <p className="text-xs font-semibold text-slate-400 mt-0.5">{c.user.phone}</p>
-                        </div>
+                {filteredClients.map((c, i) => (
+                  <div key={c.id} className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-5 hover:bg-slate-50/50 gap-4 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-slate-50 border border-slate-100 font-bold rounded-xl flex items-center justify-center text-slate-500">
+                        #{i + 1}
                       </div>
-                      
-                      <div className="flex items-center gap-6 justify-between sm:justify-end">
-                        <div className="text-left sm:text-right">
-                          <p className="text-base font-black text-slate-800">{c.totalChecks}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Scans totaux</p>
-                        </div>
-                        <div className="w-32 bg-slate-100 rounded-full h-2 overflow-hidden relative">
-                          <div className="bg-gradient-to-r from-orange-500 to-amber-500 h-2 rounded-full transition-all" style={{ width: `${Math.min((c.checkCount / checksRequired) * 100, 100)}%` }} />
-                        </div>
-                        <div className="text-right min-w-[55px]">
-                          <p className="text-xs font-bold text-slate-700">{c.checkCount}/{checksRequired}</p>
-                          <p className="text-[10px] font-medium text-orange-400">en cours</p>
-                        </div>
+                      <div>
+                        <p className="font-bold text-slate-800 text-sm">
+                          {c.user.name ? `${c.user.name}` : 'Client Anonyme'}
+                        </p>
+                        <p className="text-xs font-semibold text-slate-400 mt-0.5">{c.user.phone}</p>
                       </div>
                     </div>
-                  ))}
+                    
+                    <div className="flex items-center gap-6 justify-between sm:justify-end">
+                      <div className="text-left sm:text-right">
+                        <p className="text-base font-black text-slate-800">{c.totalChecks}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Scans totaux</p>
+                      </div>
+                      <div className="w-32 bg-slate-100 rounded-full h-2 overflow-hidden relative">
+                        <div className="bg-gradient-to-r from-orange-500 to-amber-500 h-2 rounded-full transition-all" style={{ width: `${Math.min((c.checkCount / checksRequired) * 100, 100)}%` }} />
+                      </div>
+                      <div className="text-right min-w-[55px]">
+                        <p className="text-xs font-bold text-slate-700">{c.checkCount}/{checksRequired}</p>
+                        <p className="text-[10px] font-medium text-orange-400">en cours</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {/* Fix 3 — Message "aucun résultat" clients */}
+                {filteredClients.length === 0 && (
+                  <div className="text-center py-12">
+                    <p className="text-2xl mb-2">🔍</p>
+                    <p className="text-slate-400 text-sm font-medium">Aucun client ne correspond à votre recherche</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -500,13 +529,14 @@ const DashboardPage = () => {
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Tampons Requis</label>
+                      {/* Fix 1 — parseInt pour checksRequired */}
                       <input 
                         type="number" 
                         min={1} 
                         max={50}
                         required
                         value={settingsForm.checksRequired}
-                        onChange={(e) => setSettingsForm({...settingsForm, checksRequired: e.target.value})}
+                        onChange={(e) => setSettingsForm({...settingsForm, checksRequired: parseInt(e.target.value) || 0})}
                         className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
                       />
                     </div>

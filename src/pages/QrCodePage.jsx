@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getMyQrCodes, generateQrCode } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import Logo from '../assets/logo.jsx'
 
 const QrCodePage = () => {
   const navigate = useNavigate()
@@ -39,89 +40,79 @@ const QrCodePage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-100 px-6 py-4 flex items-center gap-4">
-        <button onClick={() => navigate('/dashboard')} className="text-gray-400 hover:text-gray-600 text-sm">
-          ← Retour
-        </button>
-        <h1 className="font-semibold text-gray-800">QR Code</h1>
-        <div className="ml-auto flex items-center gap-2">
-          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-          <span className="text-xs text-gray-400">Auto-refresh</span>
+    <div className="min-h-screen bg-white text-gray-900 font-sans flex flex-col relative overflow-hidden">
+      {/* Background sync */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
+
+      {/* Navbar pro épurée style top bar */}
+      <nav className="bg-white/80 backdrop-blur-lg border-b border-gray-100 sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/dashboard')} 
+            className="flex items-center justify-center w-9 h-9 rounded-xl border border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all text-sm font-bold"
+          >
+            ←
+          </button>
+          <div className="flex items-center gap-2">
+            <Logo size={24} />
+            <span className="font-black text-sm tracking-tight text-gray-900">fid<span className="text-orange-500">app</span></span>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2 bg-orange-50 border border-orange-100 px-3 py-1.5 rounded-full">
+          <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+          <span className="text-xs font-bold text-orange-700 uppercase tracking-wider">Comptoir Actif</span>
         </div>
       </nav>
 
-      <div className="max-w-lg mx-auto px-6 py-8">
+      {/* Main Content */}
+      <div className="max-w-xl mx-auto px-6 py-12 w-full flex-1 flex flex-col justify-center relative z-10">
         {qrData ? (
-          <>
-            <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-8 text-center mb-4">
-              <div className="mb-4">
-                <p className="font-bold text-gray-800 text-xl">{restaurant?.name}</p>
-                <p className="text-gray-400 text-sm mt-1">Scannez pour gagner des points 🎁</p>
-              </div>
-
-              <div className="flex justify-center mb-6">
-                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
-                  <img src={qrData.qrImage} alt="QR Code" className="w-64 h-64" />
-                </div>
-              </div>
-
-              <div className="bg-orange-50 rounded-2xl p-4">
-                <p className="text-orange-600 font-semibold text-sm">
-                  🎁 {restaurant?.checksRequired || 10} visites = 1 repas gratuit
-                </p>
-                <p className="text-gray-400 text-xs mt-1">
-                  Scannez avec votre téléphone • Gratuit & sans installation
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="text-sm text-gray-600 font-medium">QR Code actif et sécurisé</span>
-                </div>
-                {lastRefresh && (
-                  <span className="text-xs text-gray-300">
-                    Mis à jour à {lastRefresh.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-gray-400 mt-2">
-                Le QR code se renouvelle automatiquement toutes les heures pour sécuriser les check-ins.
+          <div className="animate-fade-in-up">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-gray-200/40 border border-gray-100 p-8 sm:p-10 text-center mb-6 relative overflow-hidden">
+              <span className="inline-block text-xs font-bold uppercase tracking-widest text-orange-600 bg-orange-50 px-3 py-1.5 rounded-full mb-4">
+                ✨ Scannez pour valider
+              </span>
+              <h2 className="font-black text-gray-900 text-3xl mb-2 tracking-tight">{restaurant?.name || 'Votre Commerce'}</h2>
+              <p className="text-gray-500 text-sm font-medium max-w-sm mx-auto mb-8">
+                Présentez votre appareil photo pour cumuler vos points sans aucune application.
               </p>
+
+              {/* QR Cadre Tech */}
+              <div className="flex justify-center mb-8">
+                <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] relative group transition-all duration-300 hover:shadow-xl">
+                  <img src={qrData.qrImage} alt="QR Code Rotatif" className="w-64 h-64 mix-blend-multiply" />
+                </div>
+              </div>
+
+              {/* Offre - Reprise du composant noir asymétrique de la landing */}
+              <div className="bg-gray-900 text-white rounded-2xl p-5 text-center shadow-lg">
+                <p className="font-bold text-base tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-300">
+                  🔥 {restaurant?.checksRequired || 10} visites = 1 cadeau ou repas offert !
+                </p>
+              </div>
             </div>
 
-            <button
-              onClick={loadQr}
-              className="w-full border border-orange-200 text-orange-500 hover:bg-orange-50 font-semibold py-3 rounded-xl transition-all text-sm"
-            >
-              🔄 Rafraîchir manuellement
-            </button>
-          </>
+            {/* Sync bar */}
+            <div className="bg-gray-50 rounded-2xl border border-gray-100 p-4 flex items-center justify-between text-xs text-gray-400 font-medium">
+              <span className="flex items-center gap-2">🛡️ Sécurité Anti-Fraude Active</span>
+              {lastRefresh && (
+                <span>MàJ : {lastRefresh.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+              )}
+            </div>
+          </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
-            <p className="text-4xl mb-4">🔲</p>
-            <p className="text-gray-500 mb-6">Aucun QR code généré</p>
+          <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 p-10 text-center">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Aucun QR généré</h3>
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className="bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-semibold px-8 py-3 rounded-xl transition-all"
+              className="bg-gray-900 text-white font-bold px-6 py-3 rounded-xl hover:bg-gray-800 transition-all text-sm"
             >
-              {generating ? 'Génération...' : '+ Générer mon QR Code'}
+              {generating ? 'Création...' : 'Générer le QR Code Actif'}
             </button>
           </div>
         )}
-
-        <div className="mt-6 bg-blue-50 border border-blue-100 rounded-2xl p-4">
-          <h3 className="font-semibold text-blue-800 text-sm mb-2">💡 Comment utiliser</h3>
-          <div className="space-y-1">
-            <p className="text-blue-600 text-xs">• Affichez cette page sur une tablette ou un écran au comptoir</p>
-            <p className="text-blue-600 text-xs">• Le client scanne avec son téléphone — zéro installation</p>
-            <p className="text-blue-600 text-xs">• Le QR se renouvelle automatiquement — pas besoin de rien faire</p>
-          </div>
-        </div>
       </div>
     </div>
   )

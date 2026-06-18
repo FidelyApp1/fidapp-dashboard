@@ -1,26 +1,48 @@
 import { useAuth } from '../context/AuthContext'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { getStats, getMe } from '../api/client'
+import { useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getStats, getMe } from '../api/client' // Assure-toi d'y ajouter une fonction updateSettings(data)
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useState } from 'react'
+
+// On simule ou on importe l'API de mise à jour (à adapter selon ton src/api/client.js)
+// Si non définie dans tes requêtes clientes, ajoute-la là-bas. Exemple rapide :
+// const updateSettings = async (data) => axios.put('/auth/settings', data).then(res => res.data)
 
 const DashboardPage = () => {
   const { restaurant, logout } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
+  const queryClient = useQueryClient()
   const [activePage, setActivePage] = useState('overview')
-  const [sidebarOpen, setSidebarOpen] = useState(false) // 📱 État pour le menu mobile
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  // 📥 Ajout des deux states de recherche en haut du composant
+  // 📥 États de recherche
   const [searchCheckins, setSearchCheckins] = useState('')
   const [searchClients, setSearchClients] = useState('')
 
-  // 1️⃣ Récupération du profil frais (pour la suspension et la configuration locale)
+  // ⚙️ États pour le formulaire Settings
+  const [settingsForm, setSettingsForm] = useState(null)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+
+  // 1️⃣ Récupération du profil frais
   const { data: meData } = useQuery({
     queryKey: ['me'],
     queryFn: getMe,
-    refetchInterval: 30000
+    refetchInterval: 30000,
+    onSuccess: (data) => {
+      if (data?.restaurant && !settingsForm) {
+        setSettingsForm({
+          name: data.restaurant.name || '',
+          phone: data.restaurant.phone || '',
+          address: data.restaurant.address || '',
+          sector: data.restaurant.sector || 'restaurant',
+          checksRequired: data.restaurant.checksRequired || 10,
+          rewardTitle: data.restaurant.rewardTitle || '',
+          rewardDesc: data.restaurant.rewardDesc || '',
+          rewardEmoji: data.restaurant.rewardEmoji || '🎁',
+        })
+      }
+    }
   })
 
   // 2️⃣ Récupération des statistiques générales
@@ -30,24 +52,59 @@ const DashboardPage = () => {
     refetchInterval: 30000
   })
 
-  // Interception de sécurité : Si le compte est suspendu, on bloque l'affichage complet
+  // 3️⃣ Mutation pour sauvegarder les réglages
+  // Remplacer par ton appel API réel si nécessaire (ex: api.updateSettings)
+  const mutation = useMutation({
+    mutationFn: async (formData) => {
+      // Simuler ou appeler directement via fetch/axios :
+      const token = localStorage.getItem('token') // ou via ton context
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      })
+      if (!response.ok) throw new Error('Erreur lors de la sauvegarde')
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
+    }
+  })
+
+  // Initialisation du formulaire si meData arrive plus tard
+  if (meData?.restaurant && !settingsForm) {
+    setSettingsForm({
+      name: meData.restaurant.name || '',
+      phone: meData.restaurant.phone || '',
+      address: meData.restaurant.address || '',
+      sector: meData.restaurant.sector || 'restaurant',
+      checksRequired: meData.restaurant.checksRequired || 10,
+      rewardTitle: meData.restaurant.rewardTitle || '',
+      rewardDesc: meData.restaurant.rewardDesc || '',
+      rewardEmoji: meData.restaurant.rewardEmoji || '🎁',
+    })
+  }
+
+  // Interception de sécurité : Si le compte est suspendu
   if (meData?.restaurant?.suspended) {
     return (
-      <div className="min-h-screen bg-red-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-8 max-w-sm w-full text-center">
-          <p className="text-6xl mb-4 animate-bounce">🚫</p>
-          <h1 className="text-2xl font-bold text-red-600">Compte suspendu</h1>
-          <p className="text-gray-500 mt-2 text-sm">
-            L'accès à votre tableau de bord a été temporairement restreint.
+      <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50 flex items-center justify-center p-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-red-100 p-8 max-w-sm w-full text-center transform transition-all hover:scale-105">
+          <p className="text-7xl mb-4 animate-bounce">🚫</p>
+          <h1 className="text-2xl font-black text-red-600 tracking-tight">Compte restreint</h1>
+          <p className="text-gray-500 mt-3 text-sm leading-relaxed">
+            L'accès à votre espace FidApp a été temporairement suspendu par notre équipe technique.
           </p>
-          <p className="text-gray-500 mt-1 text-sm font-medium">
-            Contactez FidApp pour plus d'informations.
-          </p>
-          <div className="mt-6 pt-4 border-t border-gray-100 flex flex-col gap-3">
-            <span className="text-orange-500 font-semibold text-sm">fidapp.ma</span>
+          <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col gap-4">
+            <span className="text-orange-500 font-bold text-lg tracking-wide bg-orange-50 py-2 rounded-xl">fidapp.ma</span>
             <button 
               onClick={logout}
-              className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+              className="text-xs font-semibold text-gray-400 hover:text-red-500 transition-colors uppercase tracking-wider"
             >
               Se déconnecter
             </button>
@@ -57,7 +114,6 @@ const DashboardPage = () => {
     )
   }
 
-  // Variable unifiée pour le nombre de tampons requis
   const checksRequired = meData?.restaurant?.checksRequired || restaurant?.checksRequired || 10
 
   const chartData = data?.dailyData
@@ -70,45 +126,53 @@ const DashboardPage = () => {
   const navItems = [
     { id: 'overview', label: 'Vue générale', icon: '📊' },
     { id: 'checkins', label: 'Check-ins', icon: '✅' },
-    { id: 'clients', label: 'Clients', icon: '👥' },
-    { id: 'qrcode', label: 'QR Code', icon: '🔲' },
+    { id: 'clients', label: 'Mes Clients', icon: '👥' },
+    { id: 'settings', label: 'Configuration', icon: '⚙️' },
+    { id: 'qrcode', label: 'Mon QR Code', icon: '🔲' },
   ]
 
+  const handleSettingsSubmit = (e) => {
+    e.preventDefault()
+    mutation.mutate(settingsForm)
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-slate-50/50 flex font-sans text-slate-800 antialiased">
       
       {/* 📱 Overlay mobile */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* 🧭 Sidebar Responsive */}
-      <aside className={`w-64 bg-white border-r border-gray-100 flex flex-col fixed h-full z-30 transition-transform duration-300 ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      {/* 🧭 Sidebar Glassmorphism Design */}
+      <aside className={`w-64 bg-white/90 backdrop-blur-md border-r border-slate-100 flex flex-col fixed h-full z-50 transition-transform duration-300 ease-out lg:translate-x-0 ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
-        <div className="p-6 border-b border-gray-100">
+        <div className="p-6 border-b border-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-orange-500 rounded-2xl flex items-center justify-center shadow-md">
-              <span className="text-xl">🃏</span>
+            <div className="w-10 h-10 bg-gradient-to-tr from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20">
+              <span className="text-xl text-white">🃏</span>
             </div>
             <div>
-              <p className="font-bold text-gray-800 text-sm">FidApp</p>
-              <p className="text-xs text-gray-400">Dashboard</p>
+              <p className="font-black text-slate-900 tracking-tight text-base">FidApp</p>
+              <p className="text-xs font-semibold text-orange-500/80 uppercase tracking-widest">Business</p>
             </div>
           </div>
         </div>
 
-        <div className="p-4 border-b border-gray-100">
-          <div className="bg-orange-50 rounded-xl p-3">
-            <p className="font-semibold text-gray-800 text-sm truncate">{meData?.restaurant?.name || restaurant?.name}</p>
-            <p className="text-xs text-gray-400 mt-0.5 truncate">{meData?.restaurant?.email || restaurant?.email}</p>
+        {/* Info Resto avec le type de Reward actif */}
+        <div className="p-4">
+          <div className="bg-gradient-to-r from-slate-50 to-orange-50/30 rounded-2xl p-4 border border-slate-100">
+            <p className="font-bold text-slate-800 text-sm truncate">{meData?.restaurant?.name || restaurant?.name}</p>
+            <p className="text-xs text-slate-400 mt-0.5 truncate">{meData?.restaurant?.email || restaurant?.email}</p>
+            <div className="mt-3 inline-flex items-center gap-1.5 bg-white border border-orange-100 px-2 py-1 rounded-lg shadow-sm">
+              <span className="text-xs">{meData?.restaurant?.rewardEmoji || '🎁'}</span>
+              <span className="text-[11px] font-medium text-slate-600 truncate max-w-[120px]">{meData?.restaurant?.rewardTitle || 'Cadeau'}</span>
+            </div>
           </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
           {navItems.map(item => (
             <button
               key={item.id}
@@ -120,131 +184,134 @@ const DashboardPage = () => {
                   setActivePage(item.id)
                 }
               }}
-              className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all flex items-center gap-3 ${
+              className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-3 group ${
                 activePage === item.id
-                  ? 'bg-orange-500 text-white shadow-md'
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                  ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-500/10'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
-              <span>{item.icon}</span>
+              <span className={`text-lg transition-transform duration-200 ${activePage !== item.id && 'group-hover:scale-120'}`}>{item.icon}</span>
               {item.label}
             </button>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-gray-100">
+        <div className="p-4 border-t border-slate-50">
           <button
             onClick={logout}
-            className="w-full text-left px-4 py-2 rounded-xl text-sm text-gray-400 hover:text-red-400 hover:bg-red-50 transition-all flex items-center gap-2"
+            className="w-full text-left px-4 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-red-500 hover:bg-red-50/50 transition-all flex items-center gap-2"
           >
             <span>🚪</span> Déconnexion
           </button>
         </div>
       </aside>
 
-      {/* 💻 Main Content */}
+      {/* 💻 Main Content Container */}
       <main className="flex-1 lg:ml-64 min-w-0 transition-all duration-300">
         
-        {/* 📋 Header avec bouton Hamburger */}
-        <div className="bg-white border-b border-gray-100 px-6 py-5 flex items-center justify-between sticky top-0 z-10">
+        {/* 📋 Header Pro */}
+        <div className="bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center text-gray-600 active:scale-95 transition-transform"
+              className="lg:hidden w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-600 border border-slate-100 active:scale-95 transition-transform"
             >
               ☰
             </button>
             <div>
-              <h1 className="text-xl font-bold text-gray-800">
-                {activePage === 'overview' && 'Vue générale'}
-                {activePage === 'checkins' && 'Check-ins récents'}
-                {activePage === 'clients' && 'Mes clients'}
+              <h1 className="text-xl font-black text-slate-900 tracking-tight">
+                {activePage === 'overview' && 'Tableau de bord'}
+                {activePage === 'checkins' && 'Flux de Check-ins'}
+                {activePage === 'clients' && 'Base Clients'}
+                {activePage === 'settings' && 'Configuration Fidélité'}
               </h1>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              <p className="text-xs font-medium text-slate-400 mt-0.5 capitalize">
+                {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-xs text-gray-400">Temps réel</span>
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-full">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+            <span className="text-[11px] font-bold text-emerald-700 tracking-wider uppercase">Live</span>
           </div>
         </div>
 
-        <div className="p-4 sm:p-6 lg:p-8">
-          {/* OVERVIEW */}
+        <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+          
+          {/* 📊 OVERVIEW PAGE */}
           {activePage === 'overview' && (
-            <div className="space-y-6">
-              {/* Stats cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-8">
+              {/* Cards Premium */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 {[
-                  { label: 'Clients fidèles', value: data?.totalClients ?? '—', icon: '👥', color: 'bg-blue-50', iconBg: 'bg-blue-100', trend: '+12%' },
-                  { label: 'Check-ins total', value: data?.totalCheckins ?? '—', icon: '✅', color: 'bg-green-50', iconBg: 'bg-green-100', trend: '+8%' },
-                  { label: 'Ce mois', value: data?.checkinsThisMonth ?? '—', icon: '📅', color: 'bg-purple-50', iconBg: 'bg-purple-100', trend: 'mois en cours' },
-                  { label: 'Rewards émis', value: data?.totalRewards ?? '—', icon: '🎁', color: 'bg-orange-50', iconBg: 'bg-orange-100', trend: 'offerts' },
+                  { label: 'Clients fidèles', value: data?.totalClients ?? '—', icon: '👥', grad: 'from-blue-500 to-cyan-500', bg: 'bg-blue-500/5', text: 'text-blue-600', trend: 'Inscrits' },
+                  { label: 'Check-ins total', value: data?.totalCheckins ?? '—', icon: '✨', grad: 'from-emerald-500 to-teal-500', bg: 'bg-emerald-500/5', text: 'text-emerald-600', trend: 'Scans validés' },
+                  { label: 'Visites ce mois', value: data?.checkinsThisMonth ?? '—', icon: '📅', grad: 'from-purple-500 to-indigo-500', bg: 'bg-purple-500/5', text: 'text-purple-600', trend: 'Mois en cours' },
+                  { label: 'Rewards émis', value: data?.totalRewards ?? '—', icon: meData?.restaurant?.rewardEmoji || '🎁', grad: 'from-orange-500 to-amber-500', bg: 'bg-orange-500/5', text: 'text-orange-600', trend: meData?.restaurant?.rewardTitle || 'Offerts' },
                 ].map((stat, i) => (
-                  <div key={i} className={`${stat.color} rounded-2xl p-5`}>
-                    <div className={`w-10 h-10 ${stat.iconBg} rounded-xl flex items-center justify-center mb-3`}>
+                  <div key={i} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-200">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl opacity-5 rounded-bl-full group-hover:scale-110 transition-transform duration-300" />
+                    <div className={`w-11 h-11 rounded-2xl ${stat.bg} flex items-center justify-center mb-4`}>
                       <span className="text-xl">{stat.icon}</span>
                     </div>
-                    <p className="text-3xl font-bold text-gray-800">{isLoading ? '...' : stat.value}</p>
-                    <p className="text-sm text-gray-500 mt-1">{stat.label}</p>
-                    <p className="text-xs text-gray-400 mt-1">{stat.trend}</p>
+                    <p className="text-3xl font-black text-slate-900 tracking-tight">{isLoading ? '...' : stat.value}</p>
+                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">{stat.label}</p>
+                    <p className={`text-xs font-semibold ${stat.text} mt-2 bg-slate-50 inline-block px-2 py-0.5 rounded-md`}>{stat.trend}</p>
                   </div>
                 ))}
               </div>
 
-              {/* Chart */}
-              <div className="bg-white rounded-2xl border border-gray-100 p-6 overflow-hidden">
+              {/* Chart Premium */}
+              <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h2 className="font-semibold text-gray-800">Activité des 7 derniers jours</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">Nombre de check-ins par jour</p>
+                    <h2 className="font-bold text-slate-900 text-base">Activité des 7 derniers jours</h2>
+                    <p className="text-xs font-medium text-slate-400 mt-0.5">Volume des scans de cartes fidélité</p>
                   </div>
-                  <div className="bg-orange-50 text-orange-500 text-xs font-semibold px-3 py-1 rounded-full">
-                    7 jours
+                  <div className="bg-orange-50 text-orange-600 text-xs font-bold px-3 py-1.5 rounded-xl border border-orange-100">
+                    7 jours glissants
                   </div>
                 </div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <AreaChart data={chartData}>
+                <ResponsiveContainer width="100%" height={240}>
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorCheckins" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.2}/>
+                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.15}/>
                         <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip
-                      contentStyle={{ background: '#fff', border: '1px solid #f1f1f1', borderRadius: '12px', fontSize: '12px' }}
+                      contentStyle={{ background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(4px)', border: '1px solid #f1f5f9', borderRadius: '16px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}
                       formatter={(value) => [`${value} check-ins`, '']}
                     />
-                    <Area type="monotone" dataKey="checkins" stroke="#f97316" strokeWidth={2} fill="url(#colorCheckins)" />
+                    <Area type="monotone" dataKey="checkins" stroke="#f97316" strokeWidth={3} fill="url(#colorCheckins)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
 
-              {/* Recent checkins + top clients */}
+              {/* Grille Activités + Tops */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-2xl border border-gray-100 p-6">
-                  <h2 className="font-semibold text-gray-800 mb-4">Activité récente</h2>
-                  <div className="space-y-3">
+                <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
+                  <h2 className="font-bold text-slate-900 mb-4 text-base flex items-center gap-2">⚡ Récents scans</h2>
+                  <div className="space-y-3.5">
                     {isLoading ? (
-                      <p className="text-gray-300 text-sm text-center py-4">Chargement...</p>
+                      <p className="text-slate-300 text-sm text-center py-4">Chargement...</p>
                     ) : data?.recentCheckins?.length === 0 ? (
-                      <p className="text-gray-400 text-sm text-center py-4">Aucune activité récente</p>
+                      <p className="text-slate-400 text-sm text-center py-4">Aucune activité récente</p>
                     ) : data?.recentCheckins?.slice(0, 5).map((c) => (
-                      <div key={c.id} className="flex items-center justify-between gap-2">
+                      <div key={c.id} className="flex items-center justify-between gap-2 p-2 hover:bg-slate-50 rounded-2xl transition-colors">
                         <div className="flex items-center gap-3 truncate">
-                          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-sm flex-shrink-0">👤</div>
+                          <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center font-bold text-sm text-slate-600">👤</div>
                           <div className="truncate">
-                            <p className="text-sm font-medium text-gray-700 truncate">
-                              {c.loyaltyCard.user.name ? `${c.loyaltyCard.user.name} — ` : ''}{c.loyaltyCard.user.phone}
+                            <p className="text-sm font-bold text-slate-800 truncate">
+                              {c.loyaltyCard.user.name ? `${c.loyaltyCard.user.name}` : c.loyaltyCard.user.phone}
                             </p>
-                            <p className="text-xs text-gray-400">{c.loyaltyCard.checkCount}/{checksRequired} visites</p>
+                            <p className="text-xs font-semibold text-slate-400">{c.loyaltyCard.checkCount}/{checksRequired} tampons</p>
                           </div>
                         </div>
-                        <span className="text-xs text-gray-300 flex-shrink-0">
+                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">
                           {new Date(c.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
@@ -252,34 +319,33 @@ const DashboardPage = () => {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-gray-100 p-6">
-                  <h2 className="font-semibold text-gray-800 mb-4">Top clients 🏆</h2>
-                  <div className="space-y-3">
+                <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
+                  <h2 className="font-bold text-slate-900 mb-4 text-base flex items-center gap-2">🏆 Top ambassadeurs</h2>
+                  <div className="space-y-3.5">
                     {isLoading ? (
-                      <p className="text-gray-300 text-sm text-center py-4">Chargement...</p>
+                      <p className="text-slate-300 text-sm text-center py-4">Chargement...</p>
                     ) : data?.topClients?.length === 0 ? (
-                      <p className="text-gray-400 text-sm text-center py-4">Aucun client pour le moment</p>
-                    ) : data?.topClients?.map((c, i) => (
-                      <div key={c.id} className="flex items-center justify-between gap-2">
+                      <p className="text-slate-400 text-sm text-center py-4">Aucun client pour le moment</p>
+                    ) : data?.topClients?.slice(0, 5).map((c, i) => (
+                      <div key={c.id} className="flex items-center justify-between gap-2 p-2 hover:bg-slate-50 rounded-2xl transition-colors">
                         <div className="flex items-center gap-3 truncate">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                            i === 0 ? 'bg-yellow-100 text-yellow-600' :
-                            i === 1 ? 'bg-gray-100 text-gray-500' :
-                            i === 2 ? 'bg-orange-100 text-orange-600' :
-                            'bg-gray-50 text-gray-400'
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold ${
+                            i === 0 ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                            i === 1 ? 'bg-slate-100 text-slate-500' :
+                            'bg-orange-50 text-orange-600'
                           }`}>
                             {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
                           </div>
                           <div className="truncate">
-                            <p className="text-sm font-medium text-gray-700 truncate">
-                              {c.user.name ? `${c.user.name} — ` : ''}{c.user.phone}
+                            <p className="text-sm font-bold text-slate-800 truncate">
+                              {c.user.name ? `${c.user.name}` : c.user.phone}
                             </p>
-                            <p className="text-xs text-gray-400">{c.totalChecks} visites au total</p>
+                            <p className="text-xs font-semibold text-slate-400">{c.totalChecks} visites cumulées</p>
                           </div>
                         </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="text-sm font-bold text-orange-500">{c.checkCount}/{checksRequired}</p>
-                          <p className="text-xs text-gray-300">en cours</p>
+                        <div className="text-right">
+                          <p className="text-sm font-black text-orange-500">{c.checkCount}/{checksRequired}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actuel</p>
                         </div>
                       </div>
                     ))}
@@ -289,41 +355,43 @@ const DashboardPage = () => {
             </div>
           )}
 
-          {/* CHECKINS */}
+          {/* ✅ CHECKINS PAGE */}
           {activePage === 'checkins' && (
-            <div className="bg-white rounded-2xl border border-gray-100">
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="font-semibold text-gray-800">Tous les check-ins</h2>
-                  <p className="text-xs text-gray-400 mt-1">{data?.totalCheckins} check-ins au total</p>
+                  <h2 className="font-bold text-slate-900 text-base">Historique des flux</h2>
+                  <p className="text-xs font-semibold text-slate-400 mt-0.5">{data?.totalCheckins} entrées au total</p>
                 </div>
-                <input
-                  value={searchCheckins}
-                  onChange={(e) => setSearchCheckins(e.target.value)}
-                  placeholder="Rechercher un numéro..."
-                  className="px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400"
-                />
+                <div className="relative">
+                  <input
+                    value={searchCheckins}
+                    onChange={(e) => setSearchCheckins(e.target.value)}
+                    placeholder="Rechercher un client..."
+                    className="w-full sm:w-64 pl-4 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
+                  />
+                </div>
               </div>
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-slate-50">
                 {data?.recentCheckins
                   ?.filter(c => c.loyaltyCard.user.phone.includes(searchCheckins) ||
                     (c.loyaltyCard.user.name && c.loyaltyCard.user.name.toLowerCase().includes(searchCheckins.toLowerCase())))
                   .map((c) => (
-                    <div key={c.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+                    <div key={c.id} className="flex items-center justify-between px-6 py-4 hover:bg-slate-50/50 transition-colors">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                          <span>✅</span>
+                        <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 font-bold">
+                          ✓
                         </div>
                         <div>
-                          <p className="font-medium text-gray-800">
-                            {c.loyaltyCard.user.name ? `${c.loyaltyCard.user.name} — ` : ''}{c.loyaltyCard.user.phone}
+                          <p className="font-bold text-slate-800 text-sm">
+                            {c.loyaltyCard.user.name ? `${c.loyaltyCard.user.name} • ` : ''}{c.loyaltyCard.user.phone}
                           </p>
-                          <p className="text-xs text-gray-400">Progression : {c.loyaltyCard.checkCount}/{checksRequired} visites</p>
+                          <p className="text-xs font-medium text-slate-400 mt-0.5">Progression carte : <span className="text-orange-500 font-bold">{c.loyaltyCard.checkCount}/{checksRequired}</span></p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm text-gray-600">{new Date(c.createdAt).toLocaleDateString('fr-FR')}</p>
-                        <p className="text-xs text-gray-300">{new Date(c.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+                        <p className="text-sm font-bold text-slate-700">{new Date(c.createdAt).toLocaleDateString('fr-FR')}</p>
+                        <p className="text-xs font-semibold text-slate-400 mt-0.5">{new Date(c.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                     </div>
                   ))}
@@ -331,50 +399,52 @@ const DashboardPage = () => {
             </div>
           )}
 
-          {/* CLIENTS — Nouvelle Section Remplacée 🚀 */}
+          {/* 👥 CLIENTS PAGE */}
           {activePage === 'clients' && (
-            <div className="bg-white rounded-2xl border border-gray-100">
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="font-semibold text-gray-800">Mes clients fidèles</h2>
-                  <p className="text-xs text-gray-400 mt-1">{data?.totalClients} clients inscrits</p>
+                  <h2 className="font-bold text-slate-900 text-base">Membres du programme</h2>
+                  <p className="text-xs font-semibold text-slate-400 mt-0.5">{data?.totalClients} fiches actives</p>
                 </div>
                 <input
                   value={searchClients}
                   onChange={(e) => setSearchClients(e.target.value)}
-                  placeholder="Rechercher..."
-                  className="px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400"
+                  placeholder="Nom ou téléphone..."
+                  className="w-full sm:w-64 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
                 />
               </div>
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-slate-50">
                 {data?.topClients
                   ?.filter(c =>
                     c.user.phone.includes(searchClients) ||
                     (c.user.name && c.user.name.toLowerCase().includes(searchClients.toLowerCase()))
                   )
                   .map((c, i) => (
-                    <div key={c.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+                    <div key={c.id} className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-5 hover:bg-slate-50/50 gap-4 transition-colors">
                       <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
-                          i === 0 ? 'bg-yellow-100' : i === 1 ? 'bg-gray-100' : i === 2 ? 'bg-orange-100' : 'bg-gray-50'
-                        }`}>
-                          {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
+                        <div className="w-10 h-10 bg-slate-50 border border-slate-100 font-bold rounded-xl flex items-center justify-center text-slate-500">
+                          #{i + 1}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-800">
-                            {c.user.name ? `${c.user.name} — ` : ''}{c.user.phone}
+                          <p className="font-bold text-slate-800 text-sm">
+                            {c.user.name ? `${c.user.name}` : 'Client Anonyme'}
                           </p>
-                          <p className="text-xs text-gray-400">Client depuis le {new Date(c.createdAt).toLocaleDateString('fr-FR')}</p>
+                          <p className="text-xs font-semibold text-slate-400 mt-0.5">{c.user.phone}</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-orange-500">{c.totalChecks}</p>
-                        <p className="text-xs text-gray-400">visites totales</p>
-                        <div className="mt-1">
-                          <div className="w-24 bg-gray-100 rounded-full h-1.5">
-                            <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: `${Math.min((c.checkCount / checksRequired) * 100, 100)}%` }} />
-                          </div>
-                          <p className="text-xs text-gray-300 mt-0.5">{c.checkCount}/{checksRequired} en cours</p>
+                      
+                      <div className="flex items-center gap-6 justify-between sm:justify-end">
+                        <div className="text-left sm:text-right">
+                          <p className="text-base font-black text-slate-800">{c.totalChecks}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Scans totaux</p>
+                        </div>
+                        <div className="w-32 bg-slate-100 rounded-full h-2 overflow-hidden relative">
+                          <div className="bg-gradient-to-r from-orange-500 to-amber-500 h-2 rounded-full transition-all" style={{ width: `${Math.min((c.checkCount / checksRequired) * 100, 100)}%` }} />
+                        </div>
+                        <div className="text-right min-w-[55px]">
+                          <p className="text-xs font-bold text-slate-700">{c.checkCount}/{checksRequired}</p>
+                          <p className="text-[10px] font-medium text-orange-400">en cours</p>
                         </div>
                       </div>
                     </div>
@@ -382,6 +452,138 @@ const DashboardPage = () => {
               </div>
             </div>
           )}
+
+          {/* ⚙️ SETTINGS PAGE (NOUVELLE PAGE MAGIQUE 🚀) */}
+          {activePage === 'settings' && settingsForm && (
+            <div className="max-w-3xl mx-auto bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden transition-all">
+              <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
+                <div>
+                  <h2 className="font-bold text-slate-900 text-base">Configuration Fidélité & Profil</h2>
+                  <p className="text-xs font-semibold text-slate-400 mt-0.5">Ajustez vos règles métiers et votre offre de récompense</p>
+                </div>
+                {saveSuccess && (
+                  <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-xs font-bold px-3 py-1.5 rounded-xl animate-fade-in">
+                    ✓ Sauvegardé
+                  </span>
+                )}
+              </div>
+
+              <form onSubmit={handleSettingsSubmit} className="p-6 space-y-6">
+                
+                {/* Section 1 : Règles de fidélité */}
+                <div>
+                  <h3 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-4">🎁 Paramètres de la Récompense</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Emoji d'activation</label>
+                      <input 
+                        type="text" 
+                        maxLength={2}
+                        value={settingsForm.rewardEmoji}
+                        onChange={(e) => setSettingsForm({...settingsForm, rewardEmoji: e.target.value})}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-center text-lg focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Titre du cadeau (ex: Repas Offert)</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={settingsForm.rewardTitle}
+                        onChange={(e) => setSettingsForm({...settingsForm, rewardTitle: e.target.value})}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Description complète</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={settingsForm.rewardDesc}
+                        onChange={(e) => setSettingsForm({...settingsForm, rewardDesc: e.target.value})}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Tampons Requis</label>
+                      <input 
+                        type="number" 
+                        min={1} 
+                        max={50}
+                        required
+                        value={settingsForm.checksRequired}
+                        onChange={(e) => setSettingsForm({...settingsForm, checksRequired: e.target.value})}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <hr className="border-slate-100" />
+
+                {/* Section 2 : Infos Etablissement */}
+                <div>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">🏢 Informations de l'Établissement</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Nom du commerce</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={settingsForm.name}
+                        onChange={(e) => setSettingsForm({...settingsForm, name: e.target.value})}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Secteur d'activité</label>
+                      <select 
+                        value={settingsForm.sector}
+                        onChange={(e) => setSettingsForm({...settingsForm, sector: e.target.value})}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
+                      >
+                        <option value="restaurant">🍴 Restaurant / Fast Food</option>
+                        <option value="cafe">☕ Café / Salon de thé</option>
+                        <option value="boulangerie">🥖 Boulangerie / Pâtisserie</option>
+                        <option value="beaute">💅 Beauté / Coiffeur</option>
+                        <option value="autre">📦 Autre commerce</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Téléphone professionnel</label>
+                      <input 
+                        type="text" 
+                        value={settingsForm.phone}
+                        onChange={(e) => setSettingsForm({...settingsForm, phone: e.target.value})}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Adresse</label>
+                      <input 
+                        type="text" 
+                        value={settingsForm.address}
+                        onChange={(e) => setSettingsForm({...settingsForm, address: e.target.value})}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bouton de soumission avec état de chargement */}
+                <div className="pt-4 border-t border-slate-50 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={mutation.isPending}
+                    className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-orange-500/10 hover:shadow-xl hover:shadow-orange-500/20 active:scale-[0.98] disabled:opacity-50 transition-all"
+                  >
+                    {mutation.isPending ? 'Mise à jour...' : 'Enregistrer les modifications'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
         </div>
       </main>
     </div>

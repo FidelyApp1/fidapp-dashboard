@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { login } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import Logo from '../assets/logo.jsx' // On réutilise ton vrai Logo !
 
 const LoginPage = () => {
   const [email, setEmail] = useState('')
@@ -12,10 +13,8 @@ const LoginPage = () => {
   const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
 
-  // ⚡ Ajout du paramètre "e" pour intercepter l'événement HTML
   const handleSubmit = async (e) => {
-    e.preventDefault() // 🚫 Bloque le rafraîchissement automatique de la page
-    
+    e.preventDefault()
     setLoading(true)
     setError('')
     try {
@@ -23,7 +22,6 @@ const LoginPage = () => {
       loginUser(data.token, data.restaurant)
       navigate('/dashboard')
     } catch (err) {
-      // Optionnel : affiche l'erreur réelle du serveur si nécessaire pour débugger
       setError(err.response?.data?.error || 'Email ou mot de passe incorrect')
     } finally {
       setLoading(false)
@@ -31,73 +29,76 @@ const LoginPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-white flex items-center justify-center px-6">
-      <div className="w-full max-w-md">
-        
-        {/* En-tête de la page */}
-        <div className="text-center mb-10">
-          <div className="w-20 h-20 bg-orange-500 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <span className="text-4xl">🃏</span>
+    <div className="min-h-screen bg-white text-gray-900 font-sans selection:bg-orange-200 flex items-center justify-center px-6 relative overflow-hidden">
+      {/* LA GRILLE : Copiée collée de ta landing pour cohérence absolue */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[500px] bg-orange-100/40 blur-[120px] rounded-full pointer-events-none" />
+
+      <div className="w-full max-w-md relative z-10 animate-fade-in-up">
+        {/* Branding synchro avec Navbar Landing */}
+        <div className="flex flex-col items-center mb-8 text-center">
+          <div className="flex items-center gap-2 mb-3">
+            <Logo size={36} />
+            <span className="font-black text-2xl tracking-tight text-gray-900">fid<span className="text-orange-500">app</span></span>
           </div>
-          <h1 className="text-3xl font-bold text-gray-800">FidApp</h1>
-          <p className="text-gray-400 mt-1">Espace restaurant</p>
+          <p className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Espace Restaurant Pro</p>
         </div>
 
-        {/* Formulaire de connexion */}
-        <div className="bg-white rounded-3xl shadow-xl p-8">
-          <h2 className="text-xl font-semibold text-gray-700 mb-6">Connexion</h2>
+        {/* Formulaire Bento Style */}
+        <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-gray-200/50 border border-gray-100 p-8 sm:p-10">
+          <h2 className="text-2xl font-black tracking-tight text-gray-900 mb-2">Ravi de vous revoir</h2>
+          <p className="text-sm text-gray-500 mb-6 font-medium">Connectez-vous pour piloter vos récompenses.</p>
 
-          <form onSubmit={handleSubmit}>
-            {/* Champ Email */}
-            <div className="mb-4">
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</label>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Identifiant Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="votre@email.com"
+                placeholder="gerant@commerce.ma"
                 required
-                className="w-full mt-2 px-4 py-3 border-2 border-gray-100 rounded-2xl focus:outline-none focus:border-orange-400 transition-colors"
+                className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-sm font-medium"
               />
             </div>
 
-            {/* Champ Mot de passe */}
-            <div className="mb-6">
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Mot de passe</label>
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Mot de passe</label>
               <div className="relative flex items-center">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="••••••••••••"
                   required
-                  className="w-full mt-2 px-4 py-3 border-2 border-gray-100 rounded-2xl focus:outline-none focus:border-orange-400 transition-colors pr-12"
+                  className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-sm font-medium pr-12"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 bottom-3 text-gray-400 hover:text-gray-600 text-lg transition-colors select-none"
+                  className="absolute right-4 text-xs font-bold text-gray-400 hover:text-gray-900 transition-colors select-none"
                   tabIndex="-1"
                 >
-                  {showPassword ? '🙈' : '👁️'}
+                  {showPassword ? 'Masquer' : 'Afficher'}
                 </button>
               </div>
             </div>
 
-            {/* Message d'erreur */}
-            {error && <p className="text-red-400 text-sm mb-4 text-center">{error}</p>}
+            {error && (
+              <div className="text-red-500 text-xs font-semibold bg-red-50 border border-red-100 p-3.5 rounded-xl text-center">
+                ⚠️ {error}
+              </div>
+            )}
 
-            {/* Bouton d'action */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-semibold py-4 rounded-2xl transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
+              className="w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-4 rounded-xl transition-all shadow-xl shadow-gray-900/10 hover:shadow-gray-900/20 active:scale-[0.98] text-sm mt-2 flex items-center justify-center gap-2"
             >
-              {loading ? 'Connexion...' : 'Se connecter →'}
+              {loading ? 'Authentification...' : 'Accéder au Dashboard pro'}
             </button>
           </form>
         </div>
-
       </div>
     </div>
   )

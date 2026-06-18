@@ -10,6 +10,7 @@ const QrCodePage = () => {
   const [qrData, setQrData] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [lastRefresh, setLastRefresh] = useState(null)
+  const isRefreshingRef = useRef(false) // 🔒 Évite les appels simultanés conflictuels
   
   // Réf pour toujours avoir la valeur fraîche de qrData dans les intervalles
   const qrDataRef = useRef(null)
@@ -18,6 +19,8 @@ const QrCodePage = () => {
   }, [qrData])
 
   const loadQr = useCallback(async () => {
+    if (isRefreshingRef.current) return
+    isRefreshingRef.current = true
     try {
       const data = await getMyQrCodes()
       if (data.qrCodes.length > 0) {
@@ -26,6 +29,8 @@ const QrCodePage = () => {
       }
     } catch (err) {
       console.error(err)
+    } finally {
+      isRefreshingRef.current = false
     }
   }, [])
 
@@ -46,14 +51,22 @@ const QrCodePage = () => {
     
     // 3. Fluidité Comptoir : Vérifie toutes les 5 secondes si le QR affiché a été consommé
     const checkConsumptionInterval = setInterval(async () => {
-      if (!isMounted || !qrDataRef.current) return
+      if (!isMounted || !qrDataRef.current || isRefreshingRef.current) return
       
       try {
         const data = await getMyQrCodes()
-        // Si le backend a généré un nouvel ID de QR code, cela signifie que le précédent a été marqué comme utilisé (isUsed: true)
+        if (!isMounted) return
+
+        // Si le backend a généré un nouvel ID de QR code, cela signifie que le précédent a été utilisé
         if (data.qrCodes.length > 0 && data.qrCodes[0].id !== qrDataRef.current.id) {
+          isRefreshingRef.current = true // Bloque temporairement le polling pendant la mise à jour
           setQrData(data.qrCodes[0])
           setLastRefresh(new Date())
+          
+          // On débloque après un court instant pour laisser l'interface client finir sa transition
+          setTimeout(() => {
+            isRefreshingRef.current = false
+          }, 1000)
         }
       } catch (err) {
         console.error("Erreur lors de la vérification du statut du QR:", err)
@@ -210,4 +223,4 @@ const QrCodePage = () => {
   )
 }
 
-export default QrCodePage
+export default QrCodePage;

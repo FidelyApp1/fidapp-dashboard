@@ -1,13 +1,9 @@
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getStats, getMe } from '../api/client' // Assure-toi d'y ajouter une fonction updateSettings(data)
+import { getStats, getMe } from '../api/client'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useState } from 'react'
-
-// On simule ou on importe l'API de mise à jour (à adapter selon ton src/api/client.js)
-// Si non définie dans tes requêtes clientes, ajoute-la là-bas. Exemple rapide :
-// const updateSettings = async (data) => axios.put('/auth/settings', data).then(res => res.data)
 
 const DashboardPage = () => {
   const { restaurant, logout } = useAuth()
@@ -53,12 +49,10 @@ const DashboardPage = () => {
   })
 
   // 3️⃣ Mutation pour sauvegarder les réglages
-  // Remplacer par ton appel API réel si nécessaire (ex: api.updateSettings)
   const mutation = useMutation({
     mutationFn: async (formData) => {
-      // Simuler ou appeler directement via fetch/axios :
-      const token = localStorage.getItem('token') // ou via ton context
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/settings`, {
+      const token = localStorage.getItem('fidapp_token') // Clé corrigée 🔑
+      const response = await fetch('https://fidapp-backend-production.up.railway.app/api/auth/settings', { // URL Production Railway 🌐
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -453,7 +447,7 @@ const DashboardPage = () => {
             </div>
           )}
 
-          {/* ⚙️ SETTINGS PAGE (NOUVELLE PAGE MAGIQUE 🚀) */}
+          {/* ⚙️ SETTINGS PAGE */}
           {activePage === 'settings' && settingsForm && (
             <div className="max-w-3xl mx-auto bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden transition-all">
               <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
@@ -549,7 +543,7 @@ const DashboardPage = () => {
                         <option value="autre">📦 Autre commerce</option>
                       </select>
                     </div>
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Téléphone professionnel</label>
                       <input 
                         type="text" 
@@ -558,8 +552,8 @@ const DashboardPage = () => {
                         className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Adresse</label>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Adresse physique</label>
                       <input 
                         type="text" 
                         value={settingsForm.address}
@@ -570,14 +564,14 @@ const DashboardPage = () => {
                   </div>
                 </div>
 
-                {/* Bouton de soumission avec état de chargement */}
-                <div className="pt-4 border-t border-slate-50 flex justify-end">
+                {/* Bouton de soumission du formulaire */}
+                <div className="pt-4">
                   <button
                     type="submit"
                     disabled={mutation.isPending}
-                    className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-orange-500/10 hover:shadow-xl hover:shadow-orange-500/20 active:scale-[0.98] disabled:opacity-50 transition-all"
+                    className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-orange-500/20 hover:opacity-95 transition-all disabled:opacity-50"
                   >
-                    {mutation.isPending ? 'Mise à jour...' : 'Enregistrer les modifications'}
+                    {mutation.isPending ? 'Enregistrement en cours...' : 'Sauvegarder les modifications'}
                   </button>
                 </div>
               </form>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getMyQrCodes, generateQrCode } from '../api/client'
 import { useAuth } from '../context/AuthContext'
@@ -10,6 +10,12 @@ const QrCodePage = () => {
   const [qrData, setQrData] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [lastRefresh, setLastRefresh] = useState(null)
+  
+  // Réf pour toujours avoir la valeur fraîche de qrData dans les intervalles
+  const qrDataRef = useRef(null)
+  useEffect(() => {
+    qrDataRef.current = qrData
+  }, [qrData])
 
   const loadQr = useCallback(async () => {
     try {
@@ -23,11 +29,42 @@ const QrCodePage = () => {
     }
   }, [])
 
-  // Sécurité : Auto-refresh automatique toutes les 55 minutes
+  // 🛡️ Sécurité & Fluidité : Gestion de la rotation et détection d'utilisation
   useEffect(() => {
-    loadQr()
-    const refreshInterval = setInterval(loadQr, 55 * 60 * 1000)
-    return () => clearInterval(refreshInterval)
+    let isMounted = true
+    
+    const safeLoadQr = async () => {
+      if (!isMounted) return
+      await loadQr()
+    }
+
+    // 1. Chargement initial au montage
+    safeLoadQr()
+
+    // 2. Sécurité : Auto-refresh toutes les 55 minutes au cas où personne ne scanne
+    const refreshInterval = setInterval(safeLoadQr, 55 * 60 * 1000)
+    
+    // 3. Fluidité Comptoir : Vérifie toutes les 5 secondes si le QR affiché a été consommé
+    const checkConsumptionInterval = setInterval(async () => {
+      if (!isMounted || !qrDataRef.current) return
+      
+      try {
+        const data = await getMyQrCodes()
+        // Si le backend a généré un nouvel ID de QR code, cela signifie que le précédent a été marqué comme utilisé (isUsed: true)
+        if (data.qrCodes.length > 0 && data.qrCodes[0].id !== qrDataRef.current.id) {
+          setQrData(data.qrCodes[0])
+          setLastRefresh(new Date())
+        }
+      } catch (err) {
+        console.error("Erreur lors de la vérification du statut du QR:", err)
+      }
+    }, 5000)
+    
+    return () => {
+      isMounted = false
+      clearInterval(refreshInterval)
+      clearInterval(checkConsumptionInterval)
+    }
   }, [loadQr])
 
   const handleGenerate = async () => {
@@ -35,6 +72,8 @@ const QrCodePage = () => {
     try {
       await generateQrCode()
       await loadQr()
+    } catch (err) {
+      console.error(err)
     } finally {
       setGenerating(false)
     }
@@ -45,7 +84,7 @@ const QrCodePage = () => {
       {/* Background Grille Tech */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
 
-      {/* Navbar pro épurée style top bar */}
+      {/* Navbar */}
       <nav className="bg-white/80 backdrop-blur-lg border-b border-gray-100 sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button 
@@ -60,7 +99,6 @@ const QrCodePage = () => {
           </div>
         </div>
         
-        {/* Indicateur de Refresh Automatique Synchro */}
         <div className="flex items-center gap-2 bg-orange-50 border border-orange-100 px-3 py-1.5 rounded-full">
           <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
           <span className="text-xs font-bold text-orange-700 uppercase tracking-wider">Auto-refresh Actif</span>
@@ -116,7 +154,7 @@ const QrCodePage = () => {
                 )}
               </div>
               <p className="text-xs text-gray-500 leading-relaxed">
-                <strong className="text-gray-700 font-bold">🛡️ Sécurité Anti-Fraude :</strong> Le QR code se renouvelle automatiquement toutes les heures pour empêcher les captures d'écran et sécuriser les check-ins.
+                <strong className="text-gray-700 font-bold">🛡️ Sécurité Anti-Fraude :</strong> Le QR code se renouvelle automatiquement toutes les heures et s'invalide dès le premier scan client pour empêcher toute triche.
               </p>
             </div>
 
@@ -151,7 +189,7 @@ const QrCodePage = () => {
 
           </div>
         ) : (
-          /* État Vide (Aucun QR généré) */
+          /* État Vide */
           <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 p-10 text-center">
             <div className="w-16 h-16 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl">
               🔲

@@ -28,16 +28,17 @@ const DashboardPage = () => {
     refetchInterval: 30000,
     onSuccess: (data) => {
       if (data?.restaurant && !settingsForm) {
-        setSettingsForm({
-          name: data.restaurant.name || '',
-          phone: data.restaurant.phone || '',
-          address: data.restaurant.address || '',
-          sector: data.restaurant.sector || 'restaurant',
-          checksRequired: data.restaurant.checksRequired || 10,
-          rewardTitle: data.restaurant.rewardTitle || '',
-          rewardDesc: data.restaurant.rewardDesc || '',
-          rewardEmoji: data.restaurant.rewardEmoji || '🎁',
-        })
+       setSettingsForm({
+  name: data.restaurant.name || '',
+  phone: data.restaurant.phone || '',
+  address: data.restaurant.address || '',
+  sector: data.restaurant.sector || 'restaurant',
+  checksRequired: data.restaurant.checksRequired || 10,
+  rewardTitle: data.restaurant.rewardTitle || '',
+  rewardDesc: data.restaurant.rewardDesc || '',
+  rewardEmoji: data.restaurant.rewardEmoji || '🎁',
+  scanDelayHours: data.restaurant.scanDelayHours || 6, // ⏱️ Nouvelle propriété !
+})
       }
     }
   })
@@ -529,19 +530,20 @@ const DashboardPage = () => {
                         className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Tampons Requis</label>
-                      {/* Fix 1 — parseInt pour checksRequired */}
-                      <input 
-                        type="number" 
-                        min={1} 
-                        max={50}
-                        required
-                        value={settingsForm.checksRequired}
-                        onChange={(e) => setSettingsForm({...settingsForm, checksRequired: parseInt(e.target.value) || 0})}
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
-                      />
-                    </div>
+                 <div>
+      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+        Délai entre 2 scans (Heures)
+      </label>
+      <input 
+        type="number" 
+        min={0} 
+        max={72}
+        required
+        value={settingsForm.scanDelayHours}
+        onChange={(e) => setSettingsForm({...settingsForm, scanDelayHours: parseInt(e.target.value) || 0})}
+        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
+      />
+    </div>
                   </div>
                 </div>
 

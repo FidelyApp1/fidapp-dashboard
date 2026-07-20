@@ -1,7 +1,8 @@
 import axios from 'axios'
+import { API_URL } from '../lib/urls'
 
 const api = axios.create({
-  baseURL: 'https://fidapp-backend-production.up.railway.app/api',
+  baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' }
 })
 
@@ -33,4 +34,20 @@ export const getMe = async () => {
   const res = await api.get('/auth/me')
   return res.data
 }
+
+export const updateSettings = async (formData) => {
+  const res = await api.put('/auth/settings', formData)
+  return res.data
+}
+
+export const getPendingRewards = async () => {
+  const res = await api.get('/rewards/pending')
+  return res.data
+}
+
+export const redeemReward = async (rewardId) => {
+  const res = await api.post(`/rewards/${rewardId}/redeem`)
+  return res.data
+}
+
 export default api

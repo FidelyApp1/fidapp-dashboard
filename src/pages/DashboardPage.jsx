@@ -1,7 +1,7 @@
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getStats, getMe } from '../api/client'
+import { getStats, getMe, updateSettings, getPendingRewards, redeemReward } from '../api/client'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useState, useEffect, useMemo } from 'react'
 import Logo from '../assets/logo.jsx'
@@ -52,23 +52,26 @@ const DashboardPage = () => {
 
   // 3️⃣ Mutation pour sauvegarder les réglages
   const mutation = useMutation({
-    mutationFn: async (formData) => {
-      const token = localStorage.getItem('fidapp_token')
-      const response = await fetch('https://fidapp-backend-production.up.railway.app/api/auth/settings', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      })
-      if (!response.ok) throw new Error('Erreur lors de la sauvegarde')
-      return response.json()
-    },
+    mutationFn: updateSettings,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me'] })
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)
+    }
+  })
+
+  const { data: rewardsData, isLoading: rewardsLoading, refetch: refetchRewards } = useQuery({
+    queryKey: ['pendingRewards'],
+    queryFn: getPendingRewards,
+    enabled: activePage === 'rewards',
+    refetchInterval: activePage === 'rewards' ? 15000 : false
+  })
+
+  const redeemMutation = useMutation({
+    mutationFn: redeemReward,
+    onSuccess: () => {
+      refetchRewards()
+      queryClient.invalidateQueries({ queryKey: ['stats'] })
     }
   })
 
@@ -83,6 +86,7 @@ const DashboardPage = () => {
       rewardTitle: meData.restaurant.rewardTitle || '',
       rewardDesc: meData.restaurant.rewardDesc || '',
       rewardEmoji: meData.restaurant.rewardEmoji || '🎁',
+      scanDelayHours: meData.restaurant.scanDelayHours ?? 6,
     })
   }
 
@@ -124,6 +128,7 @@ const DashboardPage = () => {
     { id: 'overview', label: 'Vue générale', icon: '📊' },
     { id: 'checkins', label: 'Check-ins', icon: '✅' },
     { id: 'clients', label: 'Mes Clients', icon: '👥' },
+    { id: 'rewards', label: 'Récompenses', icon: '🎁' },
     { id: 'settings', label: 'Configuration', icon: '⚙️' },
     { id: 'qrcode', label: 'Mon QR Code', icon: '🔲' },
   ]
@@ -243,6 +248,7 @@ const DashboardPage = () => {
                 {activePage === 'overview' && 'Tableau de bord'}
                 {activePage === 'checkins' && 'Flux de Check-ins'}
                 {activePage === 'clients' && 'Base Clients'}
+                {activePage === 'rewards' && 'Récompenses à valider'}
                 {activePage === 'settings' && 'Configuration Fidélité'}
               </h1>
               <p className="text-xs font-medium text-slate-400 mt-0.5 capitalize">
@@ -475,6 +481,52 @@ const DashboardPage = () => {
                     <p className="text-slate-400 text-sm font-medium">Aucun client ne correspond à votre recherche</p>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* 🎁 REWARDS PAGE */}
+          {activePage === 'rewards' && (
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-slate-50">
+                <h2 className="font-bold text-slate-900 text-base">Récompenses en attente</h2>
+                <p className="text-xs font-semibold text-slate-400 mt-0.5">
+                  Validez l'échange au comptoir lorsque le client présente sa récompense
+                </p>
+              </div>
+              <div className="divide-y divide-slate-50">
+                {rewardsLoading ? (
+                  <p className="text-slate-300 text-sm text-center py-12">Chargement...</p>
+                ) : rewardsData?.rewards?.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-2xl mb-2">🎁</p>
+                    <p className="text-slate-400 text-sm font-medium">Aucune récompense en attente</p>
+                  </div>
+                ) : rewardsData?.rewards?.map((reward) => (
+                  <div key={reward.id} className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-5 gap-4 hover:bg-slate-50/50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-orange-50 border border-orange-100 rounded-2xl flex items-center justify-center text-2xl">
+                        {meData?.restaurant?.rewardEmoji || '🎁'}
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800 text-sm">
+                          {reward.loyaltyCard.user.name || 'Client'} • {reward.loyaltyCard.user.phone}
+                        </p>
+                        <p className="text-xs font-semibold text-orange-500 mt-0.5">{reward.description}</p>
+                        <p className="text-[10px] font-medium text-slate-400 mt-1">
+                          Gagnée le {new Date(reward.createdAt).toLocaleDateString('fr-FR')}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => redeemMutation.mutate(reward.id)}
+                      disabled={redeemMutation.isPending}
+                      className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-all shadow-sm"
+                    >
+                      {redeemMutation.isPending ? 'Validation...' : 'Marquer comme utilisée'}
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
           )}
